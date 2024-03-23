@@ -20,3 +20,21 @@ def test_be_0():
     np.testing.assert_array_almost_equal(
         a/alpha,  np.asarray(u_be)[:2**n, :2**n]
     )
+
+def test_be_1():
+    n = 3
+    a = np.random.randn(2**n, 2**n)
+
+    simulator = AerSimulator(method="unitary")
+
+    circ, alpha = create_be_1(a)
+    transpiled = transpile(circ, basis_gates=['u', 'cx'], optimization_level=0)
+    transpiled.save_state()
+    result = simulator.run(transpiled).result()
+    u_be = result.get_unitary(transpiled)
+
+    np.testing.assert_array_almost_equal(
+        a/alpha,  np.asarray(u_be)[:2**n, :2**n]
+    )
+
+test_be_1()
