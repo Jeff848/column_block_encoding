@@ -1,0 +1,7 @@
+qiskit==0.46
+qiskit-aer==0.13.0
+fable-circuits
+deprecation
+numpy
+tensorly
+graphviz
