@@ -42,7 +42,7 @@ def create_be_0(a):
             bit_mask = bit_mask << 1
         Octrl_list.append(ctrl)
 
-    max_amp = max(amps)
+    max_amp = np.max(amps)
 
     #Block encoding circuit
     circ = QuantumCircuit(2*logn + 2)
@@ -79,7 +79,8 @@ def create_be_1(a):
         state = a[:, j]
         amp = np.sqrt(np.sum(state**2)) # Shouldn't be any empty columns
         amps.append(amp)
-    max_amp = max(amps)
+
+    max_amp = np.max(amps)
 
     for j in range(n): #Prepare state of columns
         state = a[:, j]
@@ -120,4 +121,251 @@ def create_be_1(a):
         circ.h(i)
 
     alpha = max_amp * np.power(np.sqrt(2), logn)
+    return circ, alpha
+
+#Linear Combination of Unitaries for low entropy data
+#For data, int range (0, d)
+def create_be_2(a, prep):
+
+    a, n, logn = get_padded_matrix(a)
+    
+    Oprep_list = []
+    preps = []
+    amps = []
+    vals = []
+    freqs = []
+    max_amp = 0
+    d = 0
+
+    #Pre calculate state and amp
+    for j in range(n):
+        state = a[:, j]
+        values, inv, frequencies = np.unique(state, return_inverse=True, return_counts=True)
+
+        #Id list of elements to val in values list
+        ids = np.arange(len(values))
+
+        #Get binary state preparation lists
+        bin_state_preps = (inv == ids.reshape((-1, 1))).astype(int)
+
+        if values[0] == 0:
+            #Drop 0 prep
+            values = values[1:]
+            bin_state_preps = bin_state_preps[1:]
+            frequencies = frequencies[1:]
+            
+        preps.append(bin_state_preps)
+        amps.append(np.sqrt(np.sum(frequencies * values**2)))
+        vals.append(values * np.sqrt(frequencies))
+        freqs.append(frequencies)
+
+        d = max(d, len(values)) #Get max number of unique data elements
+
+    logd = max(int(np.ceil(np.log2(d))), 1)
+    max_amp = np.max(amps)
+
+    for j in range(n): #Prepare state of columns
+        #Prep LCU
+        lcu_prep = QuantumCircuit(logd)
+        #Pad vals if not enough
+        if len(vals[j]) != 2**logd:
+            temp_vals = np.pad(vals[j], (0, 2**logd-len(vals[j])))
+        else:
+            temp_vals = vals[j]
+        # print(amps[j])
+        lcu_prep.initialize(temp_vals / amps[j], list(range(logd)))
+        lcu_prep = lcu_prep.decompose(reps=5)
+        lcu_prep.data = [ins for ins in lcu_prep.data if ins.operation.name != "reset"]
+
+
+
+        prep = QuantumCircuit(logn+logd+1)
+        prep = prep.compose(lcu_prep, list(range(logd)))
+
+        for i in range(len(vals[j])): 
+            bin_prep = QuantumCircuit(logn)
+            bin_prep.initialize(preps[j][i] / np.sqrt(freqs[j][i]), list(range(logn)))
+            bin_prep = bin_prep.decompose(reps=5)
+            bin_prep.data = [ins for ins in bin_prep.data if ins.operation.name != "reset"]
+            bit_mask = 1
+            for r in range(logd):
+                if i & bit_mask == 0:
+                    prep.x(r)
+                bit_mask = bit_mask << 1
+            prep = prep.compose(bin_prep.control(logd), list(range(logn+logd)))
+            bit_mask = 1
+            for r in range(logd):
+                if i & bit_mask == 0:
+                    prep.x(r)
+                bit_mask = bit_mask << 1
+
+        for i in range(logd):
+            prep.h(i)
+
+        rotate_angle = 2 * np.arccos(amps[j] / max_amp) #Rotate to normalize
+        prep.ry(rotate_angle, logn+logd)
+
+        ctrl = QuantumCircuit(logn+logn+logd+1)
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+
+        ctrl = ctrl.compose(prep.control(logn), list(range(2*logn+logd+1)))
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        Oprep_list.append(ctrl)
+
+    #Block encoding circuit
+    circ = QuantumCircuit(2*logn + logd + 1)
+    for i in range(n):
+        circ = circ.compose(Oprep_list[i], list(range(2*logn+logd+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + logd + i)
+
+    for i in range(logn + logd, logn*2 + logd):
+        circ.h(i)
+
+    alpha = max_amp * np.power(np.sqrt(2), logn+logd)#Extra two hadamards
+    return circ, alpha
+
+#Linear Combination of Unitaries for low entropy data, using most common as baseline
+#For data, int range (0, d)
+def create_be_3(a, prep):
+
+    a, n, logn = get_padded_matrix(a)
+    Oprep_list = []
+    preps = []
+    amps = []
+    vals = []
+    freqs = []
+    most_freq_inds = []
+    max_amp = 0
+    d = 0
+
+    #Pre calculate state and amp
+    for j in range(n):
+        state = a[:, j]
+        values, inv, frequencies = np.unique(state, return_inverse=True, return_counts=True)
+
+        #Id list of elements to val in values list
+        ids = np.arange(len(values))
+
+        #Get binary state preparation lists
+        bin_state_preps = (inv == ids.reshape((-1, 1))).astype(int)
+        
+        #Get most frequent element
+        most_freq_ind = np.argmax(frequencies)
+        most_freq_ele = values[most_freq_ind]
+
+        #Make the most frequent element the baseline
+        frequencies[most_freq_ind] = n 
+        most_freq_inds.append(most_freq_ind)
+        values = values - most_freq_ele #Values are now deltas from baseline
+        values[most_freq_ind] = most_freq_ele
+
+        preps.append(bin_state_preps)
+        amps.append(np.sqrt(np.sum(frequencies * values**2)))
+        vals.append(values * np.sqrt(frequencies))
+        freqs.append(frequencies)
+
+        d = max(d, len(values)) #Get max number of unique data elements
+
+    logd = max(int(np.ceil(np.log2(d))), 1)
+    max_amp = np.max(amps)
+
+    for j in range(n): #Prepare state of columns
+        #Prep LCU
+        lcu_prep = QuantumCircuit(logd)
+        #Pad vals if not enough
+        if len(vals[j]) != 2**logd:
+            temp_vals = np.pad(vals[j], (0, 2**logd - len(vals[j])))
+        else:
+            temp_vals = vals[j]
+
+        lcu_prep.initialize(temp_vals / amps[j], list(range(logd)))
+        lcu_prep = lcu_prep.decompose(reps=5)
+        lcu_prep.data = [ins for ins in lcu_prep.data if ins.operation.name != "reset"]
+
+        prep = QuantumCircuit(logn+logd+1)
+        prep = prep.compose(lcu_prep, list(range(logd)))
+
+        for i in range(len(vals[j])): 
+            bin_prep = QuantumCircuit(logn)
+            
+            if i == most_freq_inds[j]: #Means that this is the most frequent element
+                bit_mask=1
+                for r in range(logd):
+                    if i & bit_mask == 0:
+                        prep.x(r)
+                    bit_mask = bit_mask << 1
+
+                
+                for r in range(logn):
+                    bin_prep.h(r)
+                prep = prep.compose(bin_prep.control(logd), list(range(logn+logd)))
+                
+                bit_mask=1
+                for r in range(logd):
+                    if i & bit_mask == 0:
+                        prep.x(r)
+                    bit_mask = bit_mask << 1
+            else:
+
+                if freqs[j][i] == 0:
+                    continue
+
+                bin_prep.initialize(preps[j][i] / np.sqrt(freqs[j][i]), list(range(logn)))
+                bin_prep = bin_prep.decompose(reps=5)
+                bin_prep.data = [ins for ins in bin_prep.data if ins.operation.name != "reset"]
+                bit_mask = 1
+                for r in range(logd):
+                    if i & bit_mask == 0:
+                        prep.x(r)
+                    bit_mask = bit_mask << 1
+                prep = prep.compose(bin_prep.control(logd), list(range(logn+logd)))
+                bit_mask = 1
+                for r in range(logd):
+                    if i & bit_mask == 0:
+                        prep.x(r)
+                    bit_mask = bit_mask << 1
+
+        for i in range(logd):
+            prep.h(i)
+
+        rotate_angle = 2 * np.arccos(amps[j] / max_amp) #Rotate to normalize
+        prep.ry(rotate_angle, logn+logd)
+
+        ctrl = QuantumCircuit(logn+logn+logd+1)
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+
+        ctrl = ctrl.compose(prep.control(logn), list(range(2*logn+logd+1)))
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        Oprep_list.append(ctrl)
+
+    #Block encoding circuit
+    circ = QuantumCircuit(2*logn + logd + 1)
+    for i in range(n):
+        circ = circ.compose(Oprep_list[i], list(range(2*logn+logd+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + logd + i)
+
+    for i in range(logn + logd, logn*2 + logd):
+        circ.h(i)
+
+    alpha = max_amp * np.power(np.sqrt(2), logn+logd)#Extra two hadamards
     return circ, alpha

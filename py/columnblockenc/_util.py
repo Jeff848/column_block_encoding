@@ -12,3 +12,8 @@ def get_padded_matrix(a):
         n = 2**logn
     return a, n, logn
 
+def gen_random_positive_int_matrix():
+    return 1
+
+def gen_random_snp_matrix():
+    return 1
