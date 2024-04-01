@@ -1,6 +1,208 @@
 from qiskit import QuantumCircuit
 import numpy as np
-from _util import get_padded_matrix
+from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
+
+
+# #Unified function
+def column_block_encoding(a, prepare=None, multi_control=None, 
+    mc_helper_qubit=False, bin_state_prep=None, freq_center=False):
+
+    if prepare == None:
+        prepare = QiskitPrepWrapper()
+    if multi_control == None:
+        multi_control = QiskitMCWrapper()
+    
+
+    a, n, logn = get_padded_matrix(a)
+
+    helper = int(mc_helper_qubit)
+    Oprep_list = []
+    Cprep_list = []
+    
+    if bin_state_prep is None:
+        logd = 0
+        amps = []
+        #Solely prepare state of column directly
+        for j in range(n):
+            state = a[:, j]
+            amp = np.sqrt(np.sum(state**2)) # Shouldn't be any empty columns
+            amps.append(amp)
+
+        max_amp = np.max(amps)
+
+        for j in range(n): #Create circuit to prepare column with prepare call
+            state = a[:, j]
+            prep = QuantumCircuit(logn+1)
+            prep = prepare.initialize(prep, state/amps[j], list(range(logn)))
+
+            rotate_angle = 2 * np.arccos(amps[j] / max_amp)
+            prep.ry(rotate_angle, logn)
+            
+            Cprep_list.append(prep)
+
+    else:
+        preps = []
+        amps = []
+        vals = []
+        freqs = []
+        most_freq_inds = []
+        max_amp = 0
+        d = 0
+
+        #Pre calculate state and amp
+        for j in range(n):
+            state = a[:, j]
+            values, inv, frequencies = np.unique(state, return_inverse=True, return_counts=True)
+
+            #Id list of elements to val in values list
+            ids = np.arange(len(values))
+
+            #Get binary state preparation lists
+            bin_state_preps = (inv == ids.reshape((-1, 1))).astype(int)
+            
+            if freq_center:
+                #Get most frequent element
+                most_freq_ind = np.argmax(frequencies)
+                most_freq_ele = values[most_freq_ind]
+
+                #Make the most frequent element the baseline
+                frequencies[most_freq_ind] = n 
+                most_freq_inds.append(most_freq_ind)
+                values = values - most_freq_ele #Values are now deltas from baseline
+                values[most_freq_ind] = most_freq_ele
+
+            #By Default 0 is the center
+            #Drop 0 value if it exists
+            elif 0 in values: #0 value shouldn't exist for frequency based
+                #Drop 0 prep
+                ind = values.tolist().index(0)
+                values = np.delete(values,ind)
+                bin_state_preps = np.delete(bin_state_preps, ind, axis=0)
+                frequencies = np.delete(frequencies, ind)
+                
+            preps.append(bin_state_preps)
+            amps.append(np.sqrt(np.sum(frequencies * values**2)))
+            vals.append(values * np.sqrt(frequencies))
+            freqs.append(frequencies)
+
+            d = max(d, len(values)) #Get max number of unique data elements
+
+        logd = max(int(np.ceil(np.log2(d))), 1)
+        max_amp = np.max(amps)
+
+        for j in range(n): #Prepare state of columns
+            #Prep LCU
+            lcu_prep = QuantumCircuit(logd)
+            #Pad vals if not enough
+            if len(vals[j]) != 2**logd:
+                temp_vals = np.pad(vals[j], (0, 2**logd - len(vals[j])))
+            else:
+                temp_vals = vals[j]
+
+            lcu_prep = bin_state_prep.initialize(lcu_prep, temp_vals / amps[j], list(range(logd)))
+            
+
+            prep = QuantumCircuit(logn+logd+1)
+            prep = prep.compose(lcu_prep, list(range(logd)))
+
+            for i in range(len(vals[j])): 
+                bin_prep = QuantumCircuit(logn)
+                
+                if freq_center and i == most_freq_inds[j]: #Means that this is the most frequent element
+                    bit_mask=1
+                    for r in range(logd):
+                        if i & bit_mask == 0:
+                            prep.x(r)
+                        bit_mask = bit_mask << 1
+
+                    
+                    for r in range(logn):
+                        bin_prep.h(r)
+
+                    prep = multi_control.control(prep, bin_prep, list(range(logd)), list(range(logd, logd+logn)), False)
+                    
+                    bit_mask=1
+                    for r in range(logd):
+                        if i & bit_mask == 0:
+                            prep.x(r)
+                        bit_mask = bit_mask << 1
+                else:
+
+                    if freqs[j][i] == 0:
+                        continue
+
+                    bin_prep = prepare.initialize(bin_prep, preps[j][i] / np.sqrt(freqs[j][i]), list(range(logn)))
+
+                    bit_mask = 1
+                    for r in range(logd):
+                        if i & bit_mask == 0:
+                            prep.x(r)
+                        bit_mask = bit_mask << 1
+                    # prep = prep.compose(bin_prep.control(logd), list(range(logn+logd)))
+                    prep = multi_control.control(prep, bin_prep, list(range(logd)), list(range(logd, logd+logn)), False)
+
+                    bit_mask = 1
+                    for r in range(logd):
+                        if i & bit_mask == 0:
+                            prep.x(r)
+                        bit_mask = bit_mask << 1
+
+            for i in range(logd):
+                prep.h(i)
+
+            rotate_angle = 2 * np.arccos(amps[j] / max_amp) #Rotate to normalize
+            prep.ry(rotate_angle, logn+logd)
+
+            Cprep_list.append(prep)
+
+
+    #Construct multicontrols of prep circuits
+    for j in range(n):
+        ctrl = QuantumCircuit(logn+logn+logd+helper+1)
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        if mc_helper_qubit:
+            flag_qubit = logn+logn+logd+1
+        else:
+            flag_qubit = None
+        multi_control_prep = QuantumCircuit(logn+logn+logd+helper+1)
+        multi_control_prep = multi_control.control(multi_control_prep, Cprep_list[j], list(range(logn)), list(range(logn, logn+logn+logd+1)), flag_qubit)
+        ctrl = ctrl.compose(multi_control_prep, list(range(logn+logn+logd+1+helper)))
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        Oprep_list.append(ctrl)
+    
+    
+
+
+    #Assemble Block encoding circuit
+    circ = QuantumCircuit(2*logn + logd + helper + 1)
+    for i in range(n):
+        circ = circ.compose(Oprep_list[i], list(range(2*logn+logd+helper+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + logd + i)
+
+    for i in range(logn + logd, logn*2 + logd):
+        circ.h(i)
+
+    alpha = max_amp * np.power(np.sqrt(2), logn+logd)#Extra two hadamards
+    return circ, alpha
+    
+
+        
+
+    
+
+    
+
+
 
 
 #Base approach
