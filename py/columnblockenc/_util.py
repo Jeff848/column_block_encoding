@@ -19,16 +19,17 @@ def gen_random_positive_int_matrix(n, d):
     return np.random.randint(0, d, size=(2**n, 2**n)) 
 
 #SNP random data matrix
-snp_prob = np.[14223/454207, 80632/454207, 359351/454207]
+snp_prob = np.array([14223/454207, 80632/454207, 359351/454207])
 def gen_random_snp_matrix(n):
-    a= np.nonzero(np.random.multinomial(1, snp_prob, size=(2**n, 1, 2**n)).squeeze())[2]
+    #Construct a randomly via column snp distribution (use nonzero to retrieve if 0, 1 or 2)
+    a= np.nonzero(np.random.multinomial(1, snp_prob, size=(2**n, 1, 2**n)).squeeze())[2] 
     return np.resize(a, (2**n, 2**n)).T
 
 class QiskitMCWrapper():
 
     def __init__(self):
         pass
-
+    
     def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
         if helper_qubit:
             circ.mcx(control_qubits, helper_qubit)
