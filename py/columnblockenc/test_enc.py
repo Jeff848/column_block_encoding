@@ -138,17 +138,20 @@ def run_all():
     test_general(n, a, circ, alpha)
     circ, alpha = column_block_encoding(a, mc_helper_qubit=False)
     test_general(n, a, circ, alpha)
-    circ, alpha = column_block_encoding(a, bin_state_prep=QiskitPrepWrapper())
+    circ, alpha = column_block_encoding(a, bin_state_prep=QiskitPrepWrapper)
     test_general(n, a, circ, alpha)
-    circ, alpha = column_block_encoding(a, bin_state_prep=QiskitPrepWrapper(), freq_center=True)
+    circ, alpha = column_block_encoding(a, bin_state_prep=QiskitPrepWrapper, freq_center=True)
     test_general(n, a, circ, alpha)
 
 def test_iten():
     n = 3
     a = gen_random_snp_matrix(n)
-    circ, alpha = column_block_encoding(a, multi_control=ItenMC(), mc_helper_qubit=True)
-    test_general(n, a, circ, alpha)
-    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True)
-    test_general(n, a, circ, alpha)
+    # circ, alpha = column_block_encoding(a, multi_control=ItenMC(), mc_helper_qubit=True)
+    # test_general(n, a, circ, alpha)
+    # circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True)
+    # test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, bin_state_prep=QiskitPrepWrapper, 
+        freq_center=True, optimal_control=True)
 
+# run_all()
 test_iten()

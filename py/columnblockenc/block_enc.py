@@ -5,12 +5,12 @@ from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
 
 # #Unified function
 def column_block_encoding(a, prepare=None, multi_control=None, 
-    mc_helper_qubit=False, bin_state_prep=None, freq_center=False):
+    mc_helper_qubit=False, bin_state_prep=None, freq_center=False, optimal_control=False):
 
     if prepare == None:
-        prepare = QiskitPrepWrapper()
+        prepare = QiskitPrepWrapper
     if multi_control == None:
-        multi_control = QiskitMCWrapper()
+        multi_control = QiskitMCWrapper
     
 
     a, n, logn = get_padded_matrix(a)
@@ -22,6 +22,7 @@ def column_block_encoding(a, prepare=None, multi_control=None,
     if bin_state_prep is None:
         logd = 0
         amps = []
+        s = n
         #Solely prepare state of column directly
         for j in range(n):
             state = a[:, j]
@@ -32,8 +33,9 @@ def column_block_encoding(a, prepare=None, multi_control=None,
 
         for j in range(n): #Create circuit to prepare column with prepare call
             state = a[:, j]
-            prep = QuantumCircuit(logn+1)
-            prep = prepare.initialize(prep, state/amps[j], list(range(logn)))
+            prep_ancillas = prepare.get_ancillas(s, n)
+            prep = QuantumCircuit(logn+prep_ancillas+1)
+            prep = prepare.initialize(prep, state/amps[j], list(range(prep_ancillas+logn)))
 
             rotate_angle = 2 * np.arccos(amps[j] / max_amp)
             prep.ry(rotate_angle, logn)
@@ -48,6 +50,7 @@ def column_block_encoding(a, prepare=None, multi_control=None,
         most_freq_inds = []
         max_amp = 0
         d = 0
+        s = n
 
         #Pre calculate state and amp
         for j in range(n):
@@ -90,23 +93,36 @@ def column_block_encoding(a, prepare=None, multi_control=None,
         logd = max(int(np.ceil(np.log2(d))), 1)
         max_amp = np.max(amps)
 
+        lcu_prep_ancillas = bin_state_prep.get_ancillas(d, 2**logd)
+        prep_ancillas = prep.get_ancillas(s, n)
+
         for j in range(n): #Prepare state of columns
-            #Prep LCU
-            lcu_prep = QuantumCircuit(logd)
-            #Pad vals if not enough
-            if len(vals[j]) != 2**logd:
-                temp_vals = np.pad(vals[j], (0, 2**logd - len(vals[j])))
+
+            if optimal_control: #Indicates directly controlling the binary state prep to eliminate extra control cost
+                #Add padding to beginning st base case does not get triggered
+                temp_vals = np.pad(vals[j], (2**(logd + lcu_prep_ancillas) - len(vals[j]), 0))
             else:
-                temp_vals = vals[j]
+                #Pad vals if not enough
+                if len(vals[j]) != 2**logd:
+                    temp_vals = np.pad(vals[j], (0, 2**logd - len(vals[j])))
+                else:
+                    temp_vals = vals[j]
 
-            lcu_prep = bin_state_prep.initialize(lcu_prep, temp_vals / amps[j], list(range(logd)))
+            #Prep LCU
+            lcu_prep = QuantumCircuit(logd+lcu_prep_ancillas)
+            lcu_prep = bin_state_prep.initialize(lcu_prep, temp_vals / amps[j], list(range(logd + lcu_prep_ancillas)))
             
+            prep = QuantumCircuit(logn+logd+lcu_prep_ancillas+prep_ancillas+1)
 
-            prep = QuantumCircuit(logn+logd+1)
-            prep = prep.compose(lcu_prep, list(range(logd)))
+            if optimal_control:
+                LCUprep_list.append(lcu_prep) #Add to list as we have to construct prep later
+                #Ignore constructed prep
+            else:
+                prep = prep.compose(lcu_prep, list(range(logd)))
 
+            
             for i in range(len(vals[j])): 
-                bin_prep = QuantumCircuit(logn)
+                bin_prep = QuantumCircuit(logn+prep_ancillas)
                 
                 if freq_center and i == most_freq_inds[j]: #Means that this is the most frequent element
                     bit_mask=1
@@ -116,9 +132,12 @@ def column_block_encoding(a, prepare=None, multi_control=None,
                         bit_mask = bit_mask << 1
 
                     
-                    for r in range(logn):
+                    for r in range(prep_ancillas, prep_ancillas+logn):
                         bin_prep.h(r)
-
+                    
+                    if optimal_control:
+                        bin_preps.append(bin_prep)
+                    else:
                     prep = multi_control.control(prep, bin_prep, list(range(logd)), list(range(logd, logd+logn)), False)
                     
                     bit_mask=1
@@ -130,7 +149,8 @@ def column_block_encoding(a, prepare=None, multi_control=None,
 
                     if freqs[j][i] == 0:
                         continue
-
+                    
+                    #Get binary prep of specified values
                     bin_prep = prepare.initialize(bin_prep, preps[j][i] / np.sqrt(freqs[j][i]), list(range(logn)))
 
                     bit_mask = 1
@@ -158,7 +178,7 @@ def column_block_encoding(a, prepare=None, multi_control=None,
 
     #Construct multicontrols of prep circuits
     for j in range(n):
-        ctrl = QuantumCircuit(logn+logn+logd+helper+1)
+        ctrl = QuantumCircuit(logn+logn+logd+lcu_prep_ancillas+prep_ancillas+helper+1)
         bit_mask = 1
         for i in range(logn):
             if j & bit_mask == 0:
@@ -168,42 +188,40 @@ def column_block_encoding(a, prepare=None, multi_control=None,
             flag_qubit = logn+logn+logd+1
         else:
             flag_qubit = None
-        multi_control_prep = QuantumCircuit(logn+logn+logd+helper+1)
-        multi_control_prep = multi_control.control(multi_control_prep, Cprep_list[j], list(range(logn)), list(range(logn, logn+logn+logd+1)), flag_qubit)
-        ctrl = ctrl.compose(multi_control_prep, list(range(logn+logn+logd+1+helper)))
+        
+        if optimal_control and bin_state_prep:
+            multi_control_prep = QuantumCircuit(logn+logn+lcu_prep_ancillas+prep_ancillas+logd+helper+1)
+            #Control the LCU_prep directly
+            multi_control_prep = multi_control.control(multi_control_prep, LCUprep_list[j], list(range(logn)), list(range(logn, logn+logd)), flag_qubit)
+            #Append controlled bin_prep
+            multi_control_prep = multi_control_prep.compose(multi_control_prep, Cprep_list[j], list(range(logn, logn+logn+logd+1)))
+            ctrl = ctrl.compose(multi_control_prep, list(range(logn+logn+logd+1+helper)))
+        else:
+            multi_control_prep = QuantumCircuit(logn+logn+logd+lcu_prep_ancillas+prep_ancillas+helper+1)
+            multi_control_prep = multi_control.control(multi_control_prep, Cprep_list[j], list(range(logn)), list(range(logn, logn+logn+logd+1)), flag_qubit)
+            ctrl = ctrl.compose(multi_control_prep, list(range(logn+logn+logd+1+helper)))
+
         bit_mask = 1
         for i in range(logn):
             if j & bit_mask == 0:
                 ctrl.x(i)
             bit_mask = bit_mask << 1
         Oprep_list.append(ctrl)
-    
-    
-
 
     #Assemble Block encoding circuit
-    circ = QuantumCircuit(2*logn + logd + helper + 1)
+    circ = QuantumCircuit(2*logn + logd + lcu_prep_ancillas + prep_ancillas + helper + 1)
     for i in range(n):
-        circ = circ.compose(Oprep_list[i], list(range(2*logn+logd+helper+1)))
+        circ = circ.compose(Oprep_list[i], list(range(2*logn+logd+lcu_prep_ancillas+prep_ancillas+helper+1)))
 
     for i in range(logn):
-        circ.swap(i, logn + logd + i)
+        circ.swap(i, lcu_prep_ancillas + logd + prep_ancillas + logn + i)
 
-    for i in range(logn + logd, logn*2 + logd):
+    for i in range(lcu_prep_ancillas + logd + prep_ancillas + logn, lcu_prep_ancillas + logd + prep_ancillas + 2 * logn):
         circ.h(i)
 
-    alpha = max_amp * np.power(np.sqrt(2), logn+logd)#Extra two hadamards
+    alpha = max_amp * np.power(np.sqrt(2), logn+logd+lcu_prep_ancillas)#Extra two hadamards
     return circ, alpha
     
-
-        
-
-    
-
-    
-
-
-
 
 #Base approach
 #Create column-based block encoding using qiskit built in amplitude encoding
