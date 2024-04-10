@@ -15,6 +15,15 @@ class ItenMC():
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ
 
+    def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
+        if helper_qubit:
+            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
+            circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
+            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
+        else:
+            circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
+        return circ
+
     def multicontrol(self, circ, control_qubits, helper, target_qubit):
         #Decompose into two k1 and two k2 half multicontrols
         n = len(control_qubits) + 1
@@ -103,7 +112,6 @@ class ItenMC():
         circ.cx(ctrl1, target)
         circ.ry(np.pi/4, target)
         return circ
-
 
 
 
