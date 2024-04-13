@@ -32,14 +32,26 @@ class QiskitMCWrapper():
     
     @staticmethod
     def control(circ, unitary, control_qubits, target_qubits, helper_qubit=None):
+        circ = QiskitMCWrapper.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
+        if helper_qubit:
+            circ.mcx(control_qubits, helper_qubit)
+
+        return circ
+
+    @staticmethod
+    def half_control(circ, unitary, control_qubits, target_qubits, helper_qubit):
         if helper_qubit:
             circ.mcx(control_qubits, helper_qubit)
             circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
-            circ.mcx(control_qubits, helper_qubit)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
-
         return circ
+
+    @staticmethod
+    def mcx(circ, control_qubits, target_qubit, helper_qubits=None):
+        circ.mcx(control_qubits, target_qubit)
+        return circ
+
 
 class QiskitPrepWrapper():
 
@@ -57,5 +69,36 @@ class QiskitPrepWrapper():
         return circ
 
     @staticmethod
-    def get_ancillas(sparsity, length): #Number of ancillas should be a function of the length/sparsity of state
+    def get_ancillas(sparsity, length, wide_bin_state_prep=False): #Number of ancillas should be a function of the length/sparsity of state
         return 0
+
+class SparsePrepWrapper():
+    def __init__(self, wrapped_class, ancillas=0):
+        self.wrapped_class = wrapped_class
+        self.ancillas = ancillas
+
+    def initialize(self, circ, states, target_qubits):
+        #Convert state to dict
+        statedict = {}
+        d = int(np.ceil(np.log2(len(states))))
+        for i, state in enumerate(states):
+            bin_string = bin(i)[2:].zfill(d)
+            if state != 0:
+                statedict[bin_string] = state
+        self.wrapped_class.initialize(circ, statedict, target_qubits)
+        return circ
+
+    def get_ancillas(sparsity, length, wide_bin_state_prep=False): 
+        return self.ancillas
+
+class GeneralPrepWrapper():
+    def __init__(self, wrapped_class, ancillas=0):
+        self.wrapped_class = wrapped_class
+        self.ancillas = ancillas
+
+    def initialize(self, circ, states, target_qubits):
+        self.wrapped_class.initialize(circ, states, target_qubits)
+        return circ
+
+    def get_ancillas(sparsity, length, wide_bin_state_prep=False):
+        return self.ancillas
