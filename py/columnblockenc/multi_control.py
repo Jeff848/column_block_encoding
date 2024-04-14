@@ -7,13 +7,21 @@ class ItenMC():
         pass
     
     def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
+        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
+        if helper_qubit:
+            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
+        return circ
+
+    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
         if helper_qubit:
             circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
             circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
-            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ
+
+    def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
+        return self.multicontrol(circ, control_qubits, helper_qubits[0], target_qubit)
 
     def multicontrol(self, circ, control_qubits, helper, target_qubit):
         #Decompose into two k1 and two k2 half multicontrols
@@ -22,14 +30,14 @@ class ItenMC():
         k1 = int(np.ceil(n/2))
         k2 = int(n - k1 - 1)
 
-        circ = self.halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
-        circ = self.halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
-        circ = self.halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
-        circ = self.halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
+        circ = self.shor_halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
+        circ = self.shor_halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
+        circ = self.shor_halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
+        circ = self.shor_halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
         
         return circ
 
-    def halfcontrol(self, circ, additional_qubits, control_qubits, target_qubit):
+    def shor_halfcontrol(self, circ, additional_qubits, control_qubits, target_qubit):
         #Action part
         num_controls = len(control_qubits)
         num_additional = len(additional_qubits)
@@ -106,16 +114,26 @@ class ItenMC():
 
 
 
-
 class HalfItenMC(ItenMC):
     def __init__(self):
         pass
 
     def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
+        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
         if helper_qubit:
-            circ = self.halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
+            circ = self.shor_halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
+        return circ
+
+    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
+        if helper_qubit:
+            circ = self.shor_halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
             circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
-            circ = self.halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ    
+
+    def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
+        if not helper_qubits:
+            return circ
+        return self.shor_halfcontrol(circ, helper_qubits, control_qubits, target_qubit)
+

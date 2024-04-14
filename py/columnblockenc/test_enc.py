@@ -1,6 +1,7 @@
 from block_enc import create_be_0, create_be_1, create_be_2, create_be_3, column_block_encoding
 from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix
 from multi_control import ItenMC, HalfItenMC
+from bin_prep import SNPWideBinPrepWrapper
 from fable import fable
 from qiskit_aer import AerSimulator
 from qiskit import transpile
@@ -105,6 +106,8 @@ def test_general(n, a, circ, alpha):
     result = simulator.run(transpiled).result()
     u_be = result.get_unitary(transpiled)
 
+    # print(np.array(u_be))
+
     np.testing.assert_array_almost_equal(
         a/alpha,  np.asarray(u_be)[:2**n, :2**n]
     )
@@ -146,12 +149,40 @@ def run_all():
 def test_iten():
     n = 3
     a = gen_random_snp_matrix(n)
-    # circ, alpha = column_block_encoding(a, multi_control=ItenMC(), mc_helper_qubit=True)
-    # test_general(n, a, circ, alpha)
-    # circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True)
-    # test_general(n, a, circ, alpha)
-    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, bin_state_prep=QiskitPrepWrapper, 
-        freq_center=True, optimal_control=True)
+    print(a)
+    circ, alpha = column_block_encoding(a, multi_control=ItenMC(), mc_helper_qubit=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        bin_state_prep=QiskitPrepWrapper, freq_center=True)
+    test_general(n, a, circ, alpha)
+
+def test_optim():
+    n = 3
+    a = gen_random_snp_matrix(n)
+    print(a)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True, freq_center=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, freq_center=True)
+   
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True, freq_center=True)
+    test_general(n, a, circ, alpha)
+    # print(circ.draw())
 
 # run_all()
-test_iten()
+# test_iten()
+test_optim()
