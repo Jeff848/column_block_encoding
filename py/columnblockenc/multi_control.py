@@ -86,30 +86,30 @@ class ItenMC():
 
 
     def toffoli_diagonal_first_half(self, circ, ctrl1, ctrl2, target):
-        circ.ccx(ctrl1, ctrl2, target)
-        # circ.ry(-np.pi/4, target)
-        # circ.cx(ctrl1, target)
-        # circ.ry(-np.pi/4, target)
-        # circ.cx(ctrl2, target)
+        # circ.ccx(ctrl1, ctrl2, target)
+        circ.ry(-np.pi/4, target)
+        circ.cx(ctrl1, target)
+        circ.ry(-np.pi/4, target)
+        circ.cx(ctrl2, target)
         return circ
 
     def toffoli_diagonal_second_half(self, circ, ctrl1, ctrl2, target):
-        circ.ccx(ctrl1, ctrl2, target)
-        # circ.cx(ctrl2, target)
-        # circ.ry(np.pi/4, target)
-        # circ.cx(ctrl1, target)
-        # circ.ry(np.pi/4, target)
+        # circ.ccx(ctrl1, ctrl2, target)
+        circ.cx(ctrl2, target)
+        circ.ry(np.pi/4, target)
+        circ.cx(ctrl1, target)
+        circ.ry(np.pi/4, target)
         return circ
 
     def toffoli_to_diagonal(self, circ, ctrl1, ctrl2, target):
-        circ.ccx(ctrl1, ctrl2, target)
-        # circ.ry(-np.pi/4, target)
-        # circ.cx(ctrl1, target)
-        # circ.ry(-np.pi/4, target)
-        # circ.cx(ctrl2, target)
-        # circ.ry(np.pi/4, target)
-        # circ.cx(ctrl1, target)
-        # circ.ry(np.pi/4, target)
+        # circ.ccx(ctrl1, ctrl2, target)
+        circ.ry(-np.pi/4, target)
+        circ.cx(ctrl1, target)
+        circ.ry(-np.pi/4, target)
+        circ.cx(ctrl2, target)
+        circ.ry(np.pi/4, target)
+        circ.cx(ctrl1, target)
+        circ.ry(np.pi/4, target)
         return circ
 
 
