@@ -113,9 +113,6 @@ def column_block_encoding(a, prepare=None, multi_control=None,
         lcu_prep_ancillas = bin_state_prep.get_ancillas(d, 2**logd) 
         prep_ancillas = prepare.get_ancillas(s, n)
 
-        print(lcu_prep_ancillas)
-        print(logd)
-
         LCUprep_list = []
 
         rotate_qubit = logd+lcu_prep_ancillas+prep_ancillas+logn
@@ -128,7 +125,7 @@ def column_block_encoding(a, prepare=None, multi_control=None,
                 temp_vals = np.pad(vals[j], (padding, 0)) 
             else:
                 temp_vals = vals[j]
-            # print(temp_vals)
+
             #Prep LCU
             lcu_prep = QuantumCircuit(logd+lcu_prep_ancillas+1)
             lcu_prep = bin_state_prep.initialize(lcu_prep, temp_vals / amps[j], list(range(lcu_prep_ancillas + logd)))

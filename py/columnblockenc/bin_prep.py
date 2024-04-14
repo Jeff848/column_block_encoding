@@ -8,7 +8,7 @@ class SNPWideBinPrepWrapper():
 
     def initialize(self, circ, states, target_qubits):
         #Convert states to array st nonzero values are at 2**power positions
-        logd = len(states)
+        logd = len(target_qubits)
         wide_state = [0] * (2**logd)
         i = 1
         count = 1
@@ -28,6 +28,6 @@ class SNPWideBinPrepWrapper():
         if not wide_bin_state_prep:
             raise Exception("Should not be used in non-wide bin state prep mode")
         
-        d = length
-        logd = max(int(np.ceil(np.log2(d))), 1)
+        d = sparsity
+        logd = int(np.log2(length))
         return d - logd + self.ancillas

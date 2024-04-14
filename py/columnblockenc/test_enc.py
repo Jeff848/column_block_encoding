@@ -162,27 +162,27 @@ def test_optim():
     n = 3
     a = gen_random_snp_matrix(n)
     print(a)
-    # circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
-    #     prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True)
-    # test_general(n, a, circ, alpha)
-    # circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
-    #     prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True, freq_center=True)
-    # test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True)
+    test_general(n, a, circ, alpha)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True, freq_center=True)
+    test_general(n, a, circ, alpha)
     circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
         prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True)
     test_general(n, a, circ, alpha)
     circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
         prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, freq_center=True)
-    # print(circ.draw())
+   
     test_general(n, a, circ, alpha)
     circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
         prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True)
-    
     test_general(n, a, circ, alpha)
     circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
         prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True, freq_center=True)
     test_general(n, a, circ, alpha)
+    # print(circ.draw())
 
-run_all()
-test_iten()
+# run_all()
+# test_iten()
 test_optim()
