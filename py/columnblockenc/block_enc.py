@@ -1,8 +1,147 @@
 from qiskit import QuantumCircuit
 import numpy as np
 from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
+from multi_control import HalfItenMC
 
+#Assuming SNP block matrix
+def simple_block_encoding(a, multi_control=None):
 
+    if multi_control == None:
+        multi_control = HalfItenMC()
+
+    a, n, logn = get_padded_matrix(a)
+
+    mc_helper_qubit = True
+    helper = int(mc_helper_qubit)
+    Oprep_list = []
+    Cprep_list = []
+
+    #Only two ancillas-- mc helper qubit and a "delete" qubit    
+    preps = []
+    amps = []
+    vals = []
+    freqs = []
+    most_freq_inds = []
+    d = 0
+    s = n
+
+    #Pre calculate state and amp
+    for j in range(n):
+        state = a[:, j]
+        values, inv, frequencies = np.unique(state, return_inverse=True, return_counts=True)
+
+        #Id list of elements to val in values list
+        ids = np.arange(len(values))
+
+        #Get binary state preparation lists
+        bin_state_preps = (inv == ids.reshape((-1, 1))).astype(int)
+        
+        #Get most frequent element
+        most_freq_ind = np.argmax(frequencies)
+        most_freq_ele = values[most_freq_ind]
+
+        #Make the most frequent element the baseline
+        # frequencies[most_freq_ind] = n 
+        # most_freq_inds.append(most_freq_ind)
+        # values = values - most_freq_ele #Values are now deltas from baseline
+        # values[most_freq_ind] = most_freq_ele
+
+        #By Default 0 is the center
+        #Drop 0 value if it exists
+        # elif 0 in values: #0 value shouldn't exist for frequency based
+        #     #Drop 0 prep
+        #     ind = values.tolist().index(0)
+        #     values = np.delete(values,ind)
+        #     bin_state_preps = np.delete(bin_state_preps, ind, axis=0)
+        #     frequencies = np.delete(frequencies, ind)
+            
+        preps.append(bin_state_preps)
+        # amps.append(np.sqrt(np.sum(frequencies * values**2)))
+        vals.append(values)
+        freqs.append(frequencies)
+
+    flag_qubit = logn + logn
+    rotate_qubit = logn + logn + helper
+
+    for j in range(n): #Prepare state of columns
+        prep = QuantumCircuit(logn+logn+1+helper) 
+
+        for i in range(len(vals[j])): 
+            if freqs[j][i] == 0 or vals[j][i] == 2:
+                continue
+                
+            bin_prep = QuantumCircuit(logn+logn+1+helper)
+            
+            for k, m in enumerate(preps[j][i]):
+                if m==0:
+                    continue
+
+                bit_mask=1
+                for r in range(logn, logn+logn):
+                    if k & bit_mask == 0:
+                        bin_prep.x(r)
+                    bit_mask = bit_mask << 1
+
+                if vals[j][i] == 1:
+                    rotate_angle = np.pi/3
+                    bin_prep = multi_control.mcry(bin_prep, rotate_angle, [flag_qubit] + list(range(logn, logn+logn)), 
+                        rotate_qubit, list(range(logn)))
+                elif vals[j][i] == 0:
+                    bin_prep = multi_control.mcx(bin_prep, [flag_qubit] + list(range(logn, logn+logn)), 
+                        rotate_qubit, list(range(logn)))
+
+                bit_mask=1
+                for r in range(logn, logn+logn):
+                    if k & bit_mask == 0:
+                        bin_prep.x(r)
+                    bit_mask = bit_mask << 1
+            
+            prep = prep.compose(bin_prep, list(range(logn + logn+1 + helper)))
+
+        Cprep_list.append(prep)
+
+    #Construct multicontrols of prep circuits
+    for j in range(n):
+        ctrl = QuantumCircuit(logn+logn+helper+1)
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        
+        # multi_control_prep = QuantumCircuit(logn+logn+helper+1)
+        # multi_control_prep = multi_control.control(multi_control_prep, Cprep_list[j], list(range(logn)), list(range(logn, logn+logn+1)), flag_qubit)
+        ctrl = multi_control.mcx(ctrl, list(range(logn)), flag_qubit, list(range(logn, logn+logn+helper+1)))
+        ctrl = ctrl.compose(Cprep_list[j], list(range(logn+logn+helper+1)))
+        ctrl = multi_control.mcx(ctrl, list(range(logn)), flag_qubit, list(range(logn, logn+logn+helper+1)))
+        # ctrl = ctrl.compose(multi_control_prep, list(range(logn+logn+helper+1)))
+
+        bit_mask = 1
+        for i in range(logn):
+            if j & bit_mask == 0:
+                ctrl.x(i)
+            bit_mask = bit_mask << 1
+        
+        # print(ctrl.draw())
+        Oprep_list.append(ctrl)
+
+    #Assemble Block encoding circuit
+    circ = QuantumCircuit(2*logn + helper + 1)
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    for i in range(n):
+        circ = circ.compose(Oprep_list[i], list(range(2*logn+helper+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + i)
+
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    alpha = np.power(np.sqrt(2), logn+logn) * 2
+    return circ, alpha
+    
 
 #Unified function
 def column_block_encoding(a, prepare=None, multi_control=None, 

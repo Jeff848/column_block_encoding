@@ -49,7 +49,7 @@ class ItenMC():
             circ.cx(control_qubits[0], target_qubit)
             return circ
         elif num_controls == 2:
-            circ.ccx(control_qubits[0], control_qubits[1], target_qubit)
+            circ = self.efficient_toffoli(circ,control_qubits[0],control_qubits[1],target_qubit)
             return circ
         
         qubit_tuples = list(zip(control_qubits[num_controls:1:-1] + [control_qubits[0]]
@@ -57,7 +57,7 @@ class ItenMC():
             , [target_qubit] + list(reversed(additional_qubits[:min(num_controls-2,num_additional)])))) 
 
         c1, c2, t = qubit_tuples[0]
-        circ.ccx(c1,c2,t)
+        circ = self.efficient_toffoli(circ,c1,c2,t)
 
         for control1, control2, target in qubit_tuples[1:-1]:
             circ = self.toffoli_diagonal_first_half(circ, control1, control2, target)
@@ -69,7 +69,7 @@ class ItenMC():
             circ = self.toffoli_diagonal_second_half(circ, control1, control2, target)
 
         c1, c2, t = qubit_tuples[0]
-        circ.ccx(c1,c2,t)
+        circ = self.efficient_toffoli(circ,c1,c2,t)
 
         #Reset part
         for control1, control2, target in qubit_tuples[1:-1]:
@@ -112,6 +112,38 @@ class ItenMC():
         circ.ry(np.pi/4, target)
         return circ
 
+    def efficient_toffoli(self, circ, ctrl1, ctrl2, target):
+        circ.h(target)
+        circ.cx(ctrl2, target)
+        circ.tdg(target)
+        circ.cx(ctrl1, target)
+        circ.t(target)
+        circ.cx(ctrl2, target)
+        circ.tdg(target)
+        circ.cx(ctrl1, target)
+        circ.t(target)
+        circ.h(target)
+        circ.t(ctrl2)
+        circ.cx(ctrl1, ctrl2)
+        circ.t(ctrl1)
+        circ.tdg(ctrl2)
+        circ.cx(ctrl1, ctrl2)
+        return circ
+
+    def efficient_ccry(self, rotate_angle, circ, ctrl1, ctrl2, target):
+        circ.cry(rotate_angle / 2, ctrl2, target)
+        circ.cx(ctrl1, ctrl2)
+        circ.cry(-rotate_angle / 2, ctrl2, target)
+        circ.cx(ctrl1, ctrl2)
+        circ.cry(rotate_angle / 2, ctrl1, target)
+        return circ
+
+    def mcry_halfcontrol(self, rotate_angle, circ, additional_qubits, control_qubits, target_qubit):
+        circ.ry(rotate_angle / 2, target_qubit)
+        circ = self.shor_halfcontrol(circ, additional_qubits, control_qubits, target_qubit)
+        circ.ry(-rotate_angle / 2,  target_qubit)
+        return circ
+    
 
 
 class HalfItenMC(ItenMC):
@@ -135,5 +167,13 @@ class HalfItenMC(ItenMC):
     def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
         if not helper_qubits:
             return circ
+        # circ.mcx(control_qubits, target_qubit)
+        # return circ
         return self.shor_halfcontrol(circ, helper_qubits, control_qubits, target_qubit)
 
+    def mcry(self, circ, rotate_angle, control_qubits, target_qubit, helper_qubits=None):
+        if not helper_qubits:
+            return circ
+        # circ.mcry(rotate_angle, control_qubits, target_qubit)
+        # return circ
+        return self.mcry_halfcontrol(rotate_angle, circ, helper_qubits, control_qubits, target_qubit)

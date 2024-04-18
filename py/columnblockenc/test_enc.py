@@ -1,4 +1,4 @@
-from block_enc import create_be_0, create_be_1, create_be_2, create_be_3, column_block_encoding
+from block_enc import create_be_0, create_be_1, create_be_2, create_be_3, column_block_encoding, simple_block_encoding
 from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix
 from multi_control import ItenMC, HalfItenMC
 from bin_prep import SNPWideBinPrepWrapper
@@ -183,6 +183,17 @@ def test_optim():
     test_general(n, a, circ, alpha)
     # print(circ.draw())
 
+
+def test_simple():
+    n = 3
+    a = gen_random_snp_matrix(n)
+    print(a)
+    circ, alpha = simple_block_encoding(a)
+    # print(circ.draw()) 
+    test_general(n, a, circ, alpha)
+
+
 # run_all()
 # test_iten()
-test_optim()
+# test_optim()
+# test_simple()

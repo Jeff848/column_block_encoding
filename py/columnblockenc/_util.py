@@ -20,10 +20,34 @@ def gen_random_positive_int_matrix(n, d):
 
 #SNP random data matrix
 snp_prob = np.array([14223/454207, 80632/454207, 359351/454207])
-def gen_random_snp_matrix(n):
-    #Construct a randomly via column snp distribution (use nonzero to retrieve if 0, 1 or 2)
+def gen_random_snp_matrix_prob(n, zero_prob=14223/454207, one_prob=80632/454207):
+    snp_prob[0] = zero_prob
+    snp_prob[1] = one_prob
+    snp_prob[2] = 1. - zero_prob - one_prob
+    #Construct matrix a randomly via column snp distribution (use nonzero to retrieve if 0, 1 or 2)
     a= np.nonzero(np.random.multinomial(1, snp_prob, size=(2**n, 1, 2**n)).squeeze())[2] 
     return np.resize(a, (2**n, 2**n)).T
+
+def gen_random_snp_matrix_sparse_range(n, zero_range=None, one_range=None):
+    if zero_range is None:
+        zero_range = (1, int(n * 14223/454207))
+    if one_range is None:
+        one_range = (1, int(n * 80632/454207))
+    zero_min, zero_max = zero_range
+    one_min, one_max = one_range
+    zero_count = np.random.randint(zero_min, zero_max)
+    one_count = np.random.randint(one_min, one_max)
+    return gen_random_snp_matrix_sparse(n, zero_count, one_count)
+
+def gen_random_snp_matrix_sparse(n, zero_count=0, one_count=0):
+    a = np.zeros((2**n, 2**n))
+    if zero_count + one_count > n:
+        return a
+    snp_values = [0] * zero_count + [1] * one_count + [2] * (2**n - zero_count - one_count)
+    for j in range(2**n):
+        a[:, j] = np.random.permutation(snp_values)
+    return a
+
 
 class QiskitMCWrapper():
 
@@ -73,9 +97,11 @@ class QiskitPrepWrapper():
         return 0
 
 class SparsePrepWrapper():
-    def __init__(self, wrapped_class, ancillas=0):
+    def __init__(self, wrapped_class, ancillas=0, print_sparsity=False, print_circuits=False):
         self.wrapped_class = wrapped_class
         self.ancillas = ancillas
+        self.print_sparsity = print_sparsity
+        self.print_circuits = print_circuits
 
     def initialize(self, circ, states, target_qubits):
         #Convert state to dict
@@ -85,20 +111,30 @@ class SparsePrepWrapper():
             bin_string = bin(i)[2:].zfill(d)
             if state != 0:
                 statedict[bin_string] = state
+
+        if self.print_sparsity:
+            print(len(statedict.values()))
+        
         self.wrapped_class.initialize(circ, statedict, target_qubits)
+        if self.print_circuits:
+            print(circ.draw())
         return circ
 
-    def get_ancillas(sparsity, length, wide_bin_state_prep=False): 
+    def get_ancillas(self, sparsity, length, wide_bin_state_prep=False): 
         return self.ancillas
 
 class GeneralPrepWrapper():
-    def __init__(self, wrapped_class, ancillas=0):
+    def __init__(self, wrapped_class, ancillas=0, return_circuit=False):
         self.wrapped_class = wrapped_class
         self.ancillas = ancillas
+        self.return_circuit = return_circuit
 
     def initialize(self, circ, states, target_qubits):
-        self.wrapped_class.initialize(circ, states, target_qubits)
+        if self.return_circuit:
+            circ = self.wrapped_class.initialize(circ, states, target_qubits)
+        else:
+            self.wrapped_class.initialize(circ, states, target_qubits)
         return circ
 
-    def get_ancillas(sparsity, length, wide_bin_state_prep=False):
+    def get_ancillas(self, sparsity, length, wide_bin_state_prep=False):
         return self.ancillas
