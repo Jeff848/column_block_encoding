@@ -24,6 +24,16 @@ class SNPWideBinPrepWrapper():
             self.wrapped_class.initialize(circ, wide_state, target_qubits)
         return circ
 
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+        init_circ = QuantumCircuit(len(target_qubits))
+        if self.return_circuit:
+            init_circ = self.initialize(init_circ, states, target_qubits)
+        else:
+            self.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(1), [ctrl_qubit], target_qubits)
+        return circ
+
     def get_ancillas(self, sparsity, length, wide_bin_state_prep=True):
         if not wide_bin_state_prep:
             raise Exception("Should not be used in non-wide bin state prep mode")

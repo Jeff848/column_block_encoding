@@ -1,7 +1,9 @@
 from qiskit import QuantumCircuit
 import numpy as np
 from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
-from multi_control import HalfItenMC
+from multi_control import HalfItenMC, ItenMC
+from _angle_tree_util import top_down, state_decomposition, create_angles_tree
+from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
 
 #Assuming SNP block matrix
 def simple_block_encoding(a, multi_control=None):
@@ -122,7 +124,6 @@ def simple_block_encoding(a, multi_control=None):
                 ctrl.x(i)
             bit_mask = bit_mask << 1
         
-        # print(ctrl.draw())
         Oprep_list.append(ctrl)
 
     #Assemble Block encoding circuit
@@ -140,6 +141,110 @@ def simple_block_encoding(a, multi_control=None):
         circ.h(i)
 
     alpha = np.power(np.sqrt(2), logn+logn) * 2
+    return circ, alpha
+
+#Assuming SNP matrix
+def direct_block_encoding(a, multi_control=None):
+
+    if multi_control == None:
+        multi_control = ItenMC()
+
+    a, n, logn = get_padded_matrix(a)
+
+    mc_helper_qubit = True
+    helper = int(mc_helper_qubit)
+
+    #Construct multicontrols
+    rotate_qubit = logn+logn+helper
+    helper_qubit = logn+logn
+    ctrl = QuantumCircuit(logn+logn+helper+1)
+    for i in range(n):
+        for j in range(n):
+            if a[i][j] == 2:
+                continue
+            
+            bit_mask = 1
+            for r in range(logn+logn):
+                if ((n*i) + j) & bit_mask == 0:
+                    ctrl.x(r)
+                bit_mask = bit_mask << 1
+            
+            if a[i][j] == 1:
+                rotate_angle = np.pi/3
+                bin_prep = multi_control.mcry(ctrl, rotate_angle, list(range(logn+logn)), 
+                    rotate_qubit, [helper_qubit])
+            elif a[i][j] == 0:
+                bin_prep = multi_control.mcx(ctrl, list(range(logn+logn)), 
+                    rotate_qubit, [helper_qubit])
+
+            bit_mask = 1
+            for r in range(logn+logn):
+                if ((n*i) + j) & bit_mask == 0:
+                    ctrl.x(r)
+                bit_mask = bit_mask << 1
+        
+    #Assemble Block encoding circuit
+    circ = QuantumCircuit(2*logn + helper + 1)
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    circ = circ.compose(ctrl, list(range(2*logn+helper+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + i)
+
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    alpha = np.power(np.sqrt(2), logn+logn) * 2
+    return circ, alpha
+
+
+#CQSP proof of concept
+def topdown_block_encoding(a, multi_control=None):
+
+    a, n, logn = get_padded_matrix(a)
+    
+    # print(a_reversed)
+
+    a_unraveled = []
+    generate_matrix_order(np.ravel(a), a_unraveled, 2*logn, 0, ['0']*2*logn, False)
+
+    #Construct tree representation of matrix
+    binary_tree = state_decomposition(2 * logn, 
+        [Amplitude(i, a_v) for i, a_v in enumerate(a_unraveled)])
+    
+    #Construct angle tree of matrix
+    angle_tree, subnorm = create_angles_tree(binary_tree, 1)
+
+    u_circ = QuantumCircuit(2*logn + 1)
+    rotate_qubit = 2*logn
+
+    qubits = np.array(list(range(2*logn)))
+    qubits[::2] = np.array(list(range(logn-1, -1, -1)))
+    qubits[1::2] = np.array(list(range(2*logn-1, logn-1, -1)))
+
+
+    top_down(angle_tree, u_circ, 0, rotate_qubit, qubits)
+    # print(u_circ.decompose().draw())
+        
+    #Assemble Block encoding circuit
+    circ = QuantumCircuit(2*logn + 1)
+    
+    
+    
+    # print(qubits)
+    circ.append(u_circ, list(range(2*logn+1)))
+
+    for i in range(logn):
+        circ.swap(i, logn + i)
+
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    # print(circ.draw())
+
+    alpha = np.power(np.sqrt(2), logn) * binary_tree.mag
     return circ, alpha
     
 

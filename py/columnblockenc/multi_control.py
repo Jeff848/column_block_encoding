@@ -23,6 +23,12 @@ class ItenMC():
     def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
         return self.multicontrol(circ, control_qubits, helper_qubits[0], target_qubit)
 
+    def mcry(self, circ, rotate_angle, control_qubits, target_qubit, helper_qubits=None):
+        circ.ry(rotate_angle / 2, target_qubit)
+        circ = self.mcx(circ, control_qubits, target_qubit, helper_qubits)
+        circ.ry(-rotate_angle / 2, target_qubit)
+        return circ
+
     def multicontrol(self, circ, control_qubits, helper, target_qubit):
         #Decompose into two k1 and two k2 half multicontrols
         n = len(control_qubits) + 1

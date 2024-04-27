@@ -1,5 +1,6 @@
-from block_enc import create_be_0, create_be_1, create_be_2, create_be_3, column_block_encoding, simple_block_encoding
-from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix
+from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
+from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding
+from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob
 from multi_control import ItenMC, HalfItenMC
 from bin_prep import SNPWideBinPrepWrapper
 from fable import fable
@@ -7,6 +8,13 @@ from qiskit_aer import AerSimulator
 from qiskit import transpile
 from qiskit import QuantumCircuit
 import numpy as np
+from _angle_tree_util import top_down
+from _angle_tree_util import state_decomposition
+from _angle_tree_util import Amplitude
+from _angle_tree_util import create_angles_tree
+from _angle_tree_util import tree_visual_representation
+from sympy import Matrix
+from bitstring import BitArray
 
 
 def test_be_0():
@@ -101,13 +109,13 @@ def test_be_4():
 def test_general(n, a, circ, alpha):
     simulator = AerSimulator(method="unitary")
 
-    transpiled = transpile(circ, basis_gates=['u', 'cx'], optimization_level=0)
+    transpiled = transpile(circ, basis_gates=['u', 'cx'], optimization_level=3)
     transpiled.save_state()
     result = simulator.run(transpiled).result()
     u_be = result.get_unitary(transpiled)
-
-    # print(np.array(u_be))
-
+    # print(np.asarray(u_be)[:2**n, :2**n])
+    print(transpiled.depth())
+    print(transpiled.count_ops().get('cx', 0))
     np.testing.assert_array_almost_equal(
         a/alpha,  np.asarray(u_be)[:2**n, :2**n]
     )
@@ -134,7 +142,7 @@ def run_all():
     n = 3
     #Test with SNP data matrix
     d=n
-    a = gen_random_snp_matrix(n)
+    a = gen_random_snp_matrix_prob(n)
     print(a)
     #General framework version
     circ, alpha = column_block_encoding(a, mc_helper_qubit=True)
@@ -148,7 +156,7 @@ def run_all():
 
 def test_iten():
     n = 3
-    a = gen_random_snp_matrix(n)
+    a = gen_random_snp_matrix_prob(n)
     print(a)
     circ, alpha = column_block_encoding(a, multi_control=ItenMC(), mc_helper_qubit=True)
     test_general(n, a, circ, alpha)
@@ -160,7 +168,7 @@ def test_iten():
 
 def test_optim():
     n = 3
-    a = gen_random_snp_matrix(n)
+    a = gen_random_snp_matrix_prob(n)
     print(a)
     circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
         prepare=QiskitPrepWrapper, bin_state_prep=QiskitPrepWrapper, optimal_control=True)
@@ -186,14 +194,49 @@ def test_optim():
 
 def test_simple():
     n = 3
-    a = gen_random_snp_matrix(n)
+    a = gen_random_snp_matrix_prob(n)
     print(a)
     circ, alpha = simple_block_encoding(a)
     # print(circ.draw()) 
     test_general(n, a, circ, alpha)
 
 
+def test_direct():
+    n = 4
+    a = gen_random_snp_matrix_prob(n)
+    print(a)
+    circ, alpha = direct_block_encoding(a)
+    # print(circ.draw()) 
+    test_general(n, a, circ, alpha)
+
+def test_topdown():
+    n = 5
+    a = gen_random_snp_matrix_prob(n)
+    print(a)
+
+    circ, alpha = topdown_block_encoding(a)
+    # print(circ.decompose(reps=2).draw()) 
+    test_general(n, a, circ, alpha)
+        
+
+
+def generate_matrix_order(a, arr, target_level, bit_string, is_ctrl):
+    if len(bit_string) == target_level:
+        arr.append(a[BitArray(bin=bit_string).uint])
+        return
+    h = int(len(bit_string)/2)
+    if is_ctrl:
+        generate_matrix_order(a, arr, target_level, bit_string + '1', not is_ctrl)
+        generate_matrix_order(a, arr, target_level, bit_string + '0', not is_ctrl)
+    else:
+        generate_matrix_order(a, arr, target_level, bit_string[:h] +'1'+ bit_string[h:], not is_ctrl)
+        generate_matrix_order(a, arr, target_level, bit_string[:h] +'0'+ bit_string[h:], not is_ctrl)
+
+
 # run_all()
 # test_iten()
 # test_optim()
 # test_simple()
+
+# test_direct()
+test_topdown()

@@ -93,6 +93,14 @@ class QiskitPrepWrapper():
         return circ
 
     @staticmethod
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+        init_circ = QuantumCircuit(len(target_qubits))
+        QiskitPrepWrapper.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(1), [ctrl_qubit] + target_qubits)
+        return circ
+
+    @staticmethod
     def get_ancillas(sparsity, length, wide_bin_state_prep=False): #Number of ancillas should be a function of the length/sparsity of state
         return 0
 
@@ -120,6 +128,13 @@ class SparsePrepWrapper():
             print(circ.draw())
         return circ
 
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+        init_circ = QuantumCircuit(len(target_qubits))
+        self.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(1), [ctrl_qubit] + target_qubits)
+        return circ
+
     def get_ancillas(self, sparsity, length, wide_bin_state_prep=False): 
         return self.ancillas
 
@@ -136,5 +151,58 @@ class GeneralPrepWrapper():
             self.wrapped_class.initialize(circ, states, target_qubits)
         return circ
 
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+        init_circ = QuantumCircuit(len(target_qubits))
+        if self.return_circuit:
+            init_circ = self.initialize(init_circ, states, target_qubits)
+        else:
+            self.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(1), [ctrl_qubit] + target_qubits)
+        return circ
+
+
     def get_ancillas(self, sparsity, length, wide_bin_state_prep=False):
         return self.ancillas
+
+
+class SwapPrepWrapper():
+    def __init__(self, wrapped_class, ancillas=0, return_circuit=False):
+        self.wrapped_class = wrapped_class
+        self.ancillas = ancillas
+        self.return_circuit = return_circuit
+
+    def initialize(self, circ, states, target_qubits):
+        logn = int(len(target_qubits)/2)
+        init_circ = QuantumCircuit(logn)
+        if self.return_circuit:
+            circ = self.wrapped_class.initialize(init_circ, states, list(range(logn)))
+        else:
+            self.wrapped_class.initialize(circ, states, list(range(logn)))
+        
+        circ = circ.compose(init_circ, target_qubits[:logn])
+        for i in range(logn):
+            circ.swap(i, logn + i)
+        circ = circ.compose(init_circ.inverse(), target_qubits[:logn])
+        
+        return circ
+
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+        logn = int(len(target_qubits)/2)
+        init_circ = QuantumCircuit(logn)
+        if self.return_circuit:
+            circ = self.wrapped_class.initialize(init_circ, states, list(range(logn)))
+        else:
+            self.wrapped_class.initialize(circ, states, list(range(logn)))
+        
+        circ = circ.compose(init_circ, target_qubits[:logn])
+        for i in range(logn):
+            circ.cswap(ctrl_qubit, target_qubits[i], target_qubits[i+logn])
+        circ = circ.compose(init_circ.inverse(), target_qubits[:logn])
+        
+        return circ
+
+    def get_ancillas(self, sparsity, length, wide_bin_state_prep=False):
+        n = sparsity
+        logn = int(np.log2(length))
+        return logn + self.ancillas

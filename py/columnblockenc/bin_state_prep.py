@@ -11,6 +11,14 @@ class QiskitBinPrepWrapper():
         return circ
 
     @staticmethod
+    def ctrl_initialize(circ, states, target_qubits, ctrl_qubit):
+        init_circ = QuantumCircuit(len(target_qubits))
+        QiskitBinPrepWrapper.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(1), [ctrl_qubit], target_qubits)
+        return circ
+
+    @staticmethod
     def control(circ, control_qubits, target_qubits, helper_qubit=None):
         if helper_qubit:
             circ.mcx(control_qubits, helper_qubit)
