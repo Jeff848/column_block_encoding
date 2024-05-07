@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import NamedTuple
 from graphviz import Digraph
 from enum import Enum
+from typing import List
+# from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 import numpy as np
 from qiskit import QuantumCircuit
@@ -30,6 +32,7 @@ from bitstring import BitArray
 from qiskit_aer import AerSimulator
 from qiskit import transpile
 from qiskit.circuit.library.standard_gates import RYGate
+
 # NodeType
 class NodeType(Enum):
     TARGET = 1
@@ -59,6 +62,8 @@ class Node:
     level: int
     left: "Node"
     right: "Node"
+    parents_left: List["Node"]
+    parents_right: List["Node"]
     mag: float
     ntype: int
 
@@ -87,6 +92,8 @@ def state_decomposition(nqubits, data):
                 nqubits,
                 None,
                 None,
+                [],
+                [],
                 abs(k.amplitude),
                 NodeType.VALUE
             )
@@ -113,8 +120,10 @@ def state_decomposition(nqubits, data):
                 ntype = NodeType.CTRL
 
             new_nodes.append(
-                Node(nodes[k].index // 2, nqubits, nodes[k], nodes[k + 1], mag, ntype)
+                Node(nodes[k].index // 2, nqubits, nodes[k], nodes[k + 1], [], [], mag, ntype)
             )
+            nodes[k].parents_left.append(new_nodes[-1])
+            nodes[k+1].parents_right.append(new_nodes[-1])
             k = k + 2
 
         is_target = not is_target
@@ -167,15 +176,19 @@ class NodeAngleTree:
 
 
 #Last ctrl level should contain an offset 
-def create_angles_tree(state_tree, subnorm=1, is_ctrl=True):
+def create_angles_tree(state_tree, subnorm=1, end_level=1, is_ctrl=True):
     """
     :param state_tree: state_tree is an output of state_decomposition function
     :param tree: used in the recursive calls
     :return: tree with angles that will be used to perform the state preparation
     """
+    if state_tree is None:
+        return None, subnorm
+
     mag = 0.0
     if state_tree.ntype == NodeType.TARGET and state_tree.mag != 0.0:
-        mag = state_tree.right.mag / state_tree.mag
+        if state_tree.right:
+            mag = state_tree.right.mag / state_tree.mag
 
 
     # Avoid out-of-domain value due to numerical error.
@@ -186,22 +199,24 @@ def create_angles_tree(state_tree, subnorm=1, is_ctrl=True):
     else:
         angle_y = 2 * np.arccos(mag)
 
+    node=None
+    if state_tree.level <= end_level:
+        node = NodeAngleTree(
+            state_tree.index, state_tree.level, angle_y, subnorm, is_ctrl, None, None
+        )
 
-    node = NodeAngleTree(
-        state_tree.index, state_tree.level, angle_y, subnorm, is_ctrl, None, None
-    )
 
-    if not is_leaf(state_tree.left):
+    if state_tree.level < end_level:
         subnorm_l = subnorm
         if state_tree.ntype == NodeType.CTRL:
-            if state_tree.mag != 0:
+            if state_tree.mag != 0 and state_tree.right:
                 subnorm_l = subnorm * state_tree.right.mag / state_tree.mag
-        node.right, min_subnorm_l = create_angles_tree(state_tree.right, subnorm_l, not is_ctrl)
+        node.right, min_subnorm_l = create_angles_tree(state_tree.right, subnorm=subnorm_l, end_level=end_level, is_ctrl=not is_ctrl)
         subnorm_r = subnorm
         if state_tree.ntype == NodeType.CTRL:
-            if state_tree.mag != 0:
+            if state_tree.mag != 0 and state_tree.left:
                 subnorm_r = subnorm * state_tree.left.mag / state_tree.mag
-        node.left, min_subnorm_r = create_angles_tree(state_tree.left, subnorm_r, not is_ctrl)
+        node.left, min_subnorm_r = create_angles_tree(state_tree.left, subnorm=subnorm_r, end_level=end_level, is_ctrl=not is_ctrl)
         subnorm = min(min_subnorm_l, min_subnorm_r)
 
     return node, subnorm
@@ -223,8 +238,14 @@ def tree_visual_representation(tree, dot=None):
 
     if tree.right:
         dot.node(str(tree.right))
-        dot.edge(str(tree), str(tree.right))
+        dot.edge(str(tree), str(tree.right), style='dotted')
         dot = tree_visual_representation(tree.right, dot=dot)
+
+    # for node in tree.parents_left:
+    #     dot.edge(str(tree), str(node))
+
+    # for node in tree.parents_right:
+    #     dot.edge(str(tree), str(node))
 
     return dot
 

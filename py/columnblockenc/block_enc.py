@@ -1,9 +1,14 @@
 from qiskit import QuantumCircuit
 import numpy as np
+# from ._util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
+# from .multi_control import HalfItenMC, ItenMC
+# from ._angle_tree_util import top_down, state_decomposition, create_angles_tree
+# from ._angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
 from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
 from multi_control import HalfItenMC, ItenMC
 from _angle_tree_util import top_down, state_decomposition, create_angles_tree
 from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
+from _bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
 
 #Assuming SNP block matrix
 def simple_block_encoding(a, multi_control=None):
@@ -214,8 +219,9 @@ def topdown_block_encoding(a, multi_control=None):
     binary_tree = state_decomposition(2 * logn, 
         [Amplitude(i, a_v) for i, a_v in enumerate(a_unraveled)])
     
+    leaves_bdd, _ = leavesBDD(binary_tree)
     #Construct angle tree of matrix
-    angle_tree, subnorm = create_angles_tree(binary_tree, 1)
+    angle_tree, subnorm = create_angles_tree(binary_tree, subnorm=1, end_level=leaves_bdd[0].level-1)
 
     u_circ = QuantumCircuit(2*logn + 1)
     rotate_qubit = 2*logn
@@ -248,10 +254,100 @@ def topdown_block_encoding(a, multi_control=None):
     return circ, alpha
     
 
+#CQSP proof of concept
+def bdd_based_block_encoding(a, multi_control=None):
+
+    a, n, logn = get_padded_matrix(a)
+    
+    # print(a_reversed)
+    if multi_control is None:
+        multi_control = ItenMC()
+
+    a_unraveled = []
+    generate_matrix_order(np.ravel(a), a_unraveled, 2*logn, 0, ['0']*2*logn, False)
+
+    #Construct tree representation of matrix
+    binary_tree = state_decomposition(2 * logn, 
+        [Amplitude(i, a_v) for i, a_v in enumerate(a_unraveled)])
+
+    #Construct ROBDD from tree
+    robdd = convert_tree_to_bdd(binary_tree)
+
+    #Use common case centering to make a sparse ROBDD
+    common_case, sparse_robdd = common_case_centering(robdd)
+    
+    #Track leaf nodes for reference
+    leaves_bdd, leavesToFreq = leavesBDD(sparse_robdd)
+
+    #Construct angle tree of paths
+    angle_tree, subnorm = create_angles_tree(sparse_robdd, end_level=leaves_bdd[0].level, is_ctrl=True, subnorm=1)
+
+    # print(tree_visual_representation(sparse_robdd))
+    # print(tree_visual_representation(angle_tree))
+    # print(common_case)
+
+
+    #Construct sparse bdd circuit
+    u_circ = QuantumCircuit(2*logn + 4)
+    path_qubit = 2*logn
+    auxiliary_qubit = 2*logn+1
+    rotate_qubit = 2*logn+2
+    lcu_qubit = 2*logn+3
+
+
+    u_circ.cx(lcu_qubit, path_qubit) #Initialize path qubit for tracking if path is completed
+    # u_circ.x(path_qubit)
+
+    qubits = np.array(list(range(2*logn)))
+    qubits[::2] = np.array(list(range(logn-1, -1, -1)))
+    qubits[1::2] = np.array(list(range(2*logn-1, logn-1, -1)))
+
+    u_circ = bdd_based(angle_tree, u_circ, rotate_qubit, 
+        auxiliary_qubit, path_qubit, qubits, multi_control=multi_control, end_level=leaves_bdd[0].level, 
+    # )
+        extra_control=lcu_qubit)
+
+    # print(u_circ.draw())
+        
+    #Assemble Block encoding circuit
+    circ = QuantumCircuit(2*logn + 4)
+
+    #Get magnitude of sparse circuit
+    sparse_mag = sparse_robdd.mag
+    dense_mag = np.power(np.sqrt(2), logn) 
+    total_mag = np.sqrt(sparse_mag**2 + common_case.mag**2 * dense_mag**2)
+
+    normalization_angle = 2 * np.arccos(common_case.mag * dense_mag / total_mag)
+
+    circ.ry(-normalization_angle, lcu_qubit)
+    
+    circ.x(lcu_qubit)
+    for i in range(logn, 2 * logn):
+        circ.ch(lcu_qubit, i)
+    circ.x(lcu_qubit)
+
+    circ.append(u_circ, list(range(2*logn+4)))
+    # print(u_circ.draw())
+
+    circ.h(lcu_qubit)
+
+
+    for i in range(logn):
+        circ.swap(i, logn + i)
+
+    for i in range(logn, 2 * logn):
+        circ.h(i)
+
+    # print(circ.draw())
+
+    alpha = np.power(np.sqrt(2), logn) * (total_mag) * np.sqrt(2)
+    return circ, alpha
+    
+
 #Unified function
 def column_block_encoding(a, prepare=None, multi_control=None, 
     mc_helper_qubit=False, bin_state_prep=None, freq_center=False, 
-    optimal_control=False, wide_bin_state_prep=False):
+    optimal_control=False, wide_bin_state_prep=False, ctrl_initialize=False):
 
     if prepare == None:
         prepare = QiskitPrepWrapper
@@ -400,24 +496,40 @@ def column_block_encoding(a, prepare=None, multi_control=None,
                         bit_mask = bit_mask << 1
 
                 if freq_center and i == most_freq_inds[j]: #Means that this is the most frequent element
-                    for r in range(prep_ancillas, prep_ancillas+logn):
-                        bin_prep.h(r)
+                    if not ctrl_initialize:
+                        for r in range(prep_ancillas, prep_ancillas+logn):
+                            bin_prep.h(r)
+                    else:
+                        for r in range(prep_ancillas):
+                            bin_prep.h(r)
                 else:
                     #Get binary prep of specified values
+                    # print(logn+prep_ancillas)
+                    if not ctrl_initialize:
+                        bin_prep = prepare.initialize(bin_prep, preps[j][i] / np.sqrt(freqs[j][i]), 
+                            list(range(prep_ancillas+logn)))
+                    else:
+                        bin_prep = prepare.initialize(bin_prep, preps[j][i] / np.sqrt(freqs[j][i]), 
+                            list(range(prep_ancillas)))
                     
-                    bin_prep = prepare.initialize(bin_prep, preps[j][i] / np.sqrt(freqs[j][i]), 
-                        list(range(prep_ancillas+logn)))
-
                     
                 
                 if not wide_bin_state_prep:
-                    prep = multi_control.control(prep, bin_prep, list(range(lcu_prep_ancillas, logd+lcu_prep_ancillas)), 
-                        list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn)), False)
+                    if not ctrl_initialize:
+                        prep = multi_control.control(prep, bin_prep, list(range(lcu_prep_ancillas, logd+lcu_prep_ancillas)), 
+                            list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn)), False)
+                    else:
+                        prep = prepare.ctrl_initialize(prep, bin_prep, list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn))
+                            ,list(range(lcu_prep_ancillas, logd+lcu_prep_ancillas)))
                 else:
                     if i > logd + lcu_prep_ancillas:
                         continue
-                    prep = prep.compose(bin_prep.control(1), [i] + 
-                        list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn)))
+                    if not ctrl_initialize:
+                        prep = prep.compose(bin_prep.control(1), [i] + 
+                            list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn)))
+                    else:
+                        prep = prepare.ctrl_initialize(prep, bin_prep, 
+                            list(range(logd+lcu_prep_ancillas, logd+lcu_prep_ancillas+prep_ancillas+logn)),[i])
                 
                 bit_mask=1
                 if not wide_bin_state_prep:
@@ -451,7 +563,8 @@ def column_block_encoding(a, prepare=None, multi_control=None,
 
         if optimal_control:
             multi_control_prep = QuantumCircuit(logn+logn+logd+lcu_prep_ancillas+prep_ancillas+helper+1)
-            multi_control_prep = multi_control.half_control(multi_control_prep, LCUprep_list[j], list(range(logn)), list(range(logn, logn+logd+lcu_prep_ancillas)) + [logn + rotate_qubit], flag_qubit)
+            multi_control_prep = multi_control.half_control(multi_control_prep, LCUprep_list[j], list(range(logn)), 
+                list(range(logn, logn+logd+lcu_prep_ancillas)) + [logn + rotate_qubit], flag_qubit)
             multi_control_prep = multi_control_prep.compose(Cprep_list[j], list(range(logn, logn+logn+logd+lcu_prep_ancillas+prep_ancillas+1))) 
             if wide_bin_state_prep:
                 start = logn

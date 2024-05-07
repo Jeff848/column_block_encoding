@@ -1,2 +1,278 @@
-def convert_tree_to_bdd(tree):
-    pass
+from _angle_tree_util import NodeType
+from multi_control import ItenMC
+import numpy as np
+from qiskit.circuit.library.standard_gates import RYGate
+
+
+
+def leavesAndParents(tree):
+    parents = []
+    children = [tree]
+    while tree.ntype != NodeType.VALUE:
+        nodes = children
+        children = []
+        for node in nodes:
+            if node.left:
+                children.append(node.left)
+            if node.right:
+                children.append(node.right)
+        parents = nodes
+        tree = children[0]
+
+    return children, parents
+
+def leavesBDD(tree):
+    leaves = []
+    stack = [tree]
+    leafToFreq = {}
+    while len(stack) > 0:
+        current_node = stack.pop()
+
+        # visited.add(str(current_node.level) + ":" + str(current_node.index))
+        node_hash = str(current_node.level) + "_" + str(current_node.index)
+        if current_node.ntype == NodeType.VALUE and not node_hash in leafToFreq:
+            leaves.append(current_node)
+            leafToFreq[node_hash] = 1
+        elif current_node.ntype == NodeType.VALUE:
+            leafToFreq[node_hash] += 1
+        
+        if current_node.right:
+            stack.append(current_node.right)
+        
+        if current_node.left:
+            stack.append(current_node.left)
+
+    return leaves, leafToFreq
+
+
+def equal_trees(tree1, tree2):
+    if tree1 is None or tree2 is None:
+        if tree1 is None and tree2 is None:
+            return True
+        else:
+            return False
+
+    if tree1.ntype != tree2.ntype:
+        return False
+    
+    if tree1.mag != tree2.mag:
+        return False
+    
+    if tree1.level != tree2.level:
+        return False
+    
+    if not equal_trees(tree1.left, tree2.left):
+        return False
+
+    if not equal_trees(tree1.right, tree2.right):
+        return False
+
+    return True
+
+def convert_tree_to_bdd(tree, parent_nodes=None, current_nodes=None):
+    #Go to leaf
+    current_nodes, parent_nodes = leavesAndParents(tree)
+
+    i = 0
+    #Apply rules in bottom-up fashion
+    while len(current_nodes) > 0:
+        parent_nodes = []
+        #Get parent nodes
+        parent_nodes.extend(current_nodes[0].parents_left)
+        for node in current_nodes:
+            parent_nodes.extend(node.parents_right)
+
+        #Merge Rule
+        merge_nodes = []
+        while len(current_nodes) > 0:
+            current_node = current_nodes.pop(0)
+            merge_nodes.append(current_node)
+
+            #Merge into current_node
+            temp = []
+            for node in current_nodes:
+                if node.ntype == current_node.ntype and equal_trees(node, current_node):
+                    for parent_l in node.parents_left:
+                        parent_l.left = current_node
+                        if parent_l not in current_node.parents_left:
+                            current_node.parents_left.append(parent_l)
+
+                    for parent_r in node.parents_right:
+                        parent_r.right = current_node
+                        if parent_r not in current_node.parents_right:
+                            current_node.parents_right.append(parent_r)
+
+                    if node.left:
+                        node.left.parents_left.remove(node)
+                        node.left.parents_left.append(current_node)
+
+                    if node.right:
+                        node.right.parents_right.remove(node)
+                        node.right.parents_right.append(current_node)
+                else:
+                    temp.append(node)
+            current_nodes = temp
+
+        current_nodes = merge_nodes
+
+        #Deletion Rule
+        while len(current_nodes) > 0:
+            current_node = current_nodes.pop(0)
+            
+            if current_node.left and current_node.right and current_node.left == current_node.right:
+                #Remove this from child parents list
+                # print("Deleting " + str(current_node.level) + "_" + str(current_node.index))
+                current_node.left.parents_left.remove(current_node)
+                current_node.left.parents_right.remove(current_node)
+
+                for parent_l in current_node.parents_left:
+                    parent_l.left = current_node.left
+                    current_node.left.parents_left.append(parent_l)
+
+                for parent_r in current_node.parents_right:
+                    parent_r.right = current_node.left
+                    current_node.left.parents_right.append(parent_r)
+       
+
+        current_nodes = parent_nodes
+        # i=i+1
+
+    return tree
+
+def common_case_centering(tree):
+    """post order traversal"""
+    #Go to leaves
+    leaves, leafFreq = leavesBDD(tree)
+
+    # for leaf in leaves:
+    #     print(str(leaf))
+    # print(leafFreq)
+
+    #Get most common case
+    common_leaf_ind = max(leafFreq, key=leafFreq.get)
+    for leaf in leaves:
+        if common_leaf_ind == str(leaf.level) + "_" + str(leaf.index):
+            common_leaf = leaf
+            break
+
+    #Remove most common case from bdd
+    #for other leaves Center around common case
+    for parent_l in common_leaf.parents_left:
+        parent_l.left = None
+    for parent_r in common_leaf.parents_right:
+        parent_r.right = None
+
+    for leaf in leaves:
+        if leaf != common_leaf:
+            leaf.mag = leaf.mag - common_leaf.mag
+
+    #Do postorder traversal of tree to fix corresponding magnitudes
+    tree = recalculate_mag_bdd(tree)
+
+    return common_leaf, tree
+
+def recalculate_mag_bdd(tree):
+    #If null node do nothing
+    if not tree:
+        return None
+    #Don't change leaf node
+    if tree.ntype == NodeType.VALUE:
+        return tree
+
+    left = recalculate_mag_bdd(tree.left)
+    right = recalculate_mag_bdd(tree.right)
+    mag = 0
+    if left:
+        left_mag = left.mag**2 * 2**(left.level - tree.level - 1)
+        if tree.ntype == NodeType.TARGET:
+            mag += left_mag
+        else:
+            mag = max(left_mag, mag)
+    if right:
+        right_mag = right.mag**2 * 2**(right.level - tree.level - 1)
+        if tree.ntype == NodeType.TARGET:
+            mag += right_mag
+        else:
+            mag = max(right_mag, mag)
+
+    tree.mag = np.sqrt(mag)
+    return tree
+
+def bdd_based(angle_tree, circuit, rotate_qubit, helper_qubit, path_qubit, qubit_order,
+    multi_control=ItenMC(), current_path=[], last_1child=None, end_level=1, extra_control=None):
+    """pre order traversal"""
+    
+
+    if angle_tree is None: 
+        return circuit
+
+
+    #If there are reduced nodes between last node on current path and current node
+    last_level = None
+    if len(current_path) > 0:
+        last_node, _ = current_path[-1]
+        last_level = last_node.level
+
+    if not last_level is None and angle_tree.level - last_level > 1:
+        for level in range(last_level + 1, angle_tree.level):
+            if level%2 != 0 and last_1child:
+                # circuit.ry(np.pi / 4, qubit_order[level])
+                # circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[level])
+                # circuit.ry(-np.pi / 4, qubit_order[level])
+                circuit.append(RYGate(np.pi/2).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[level]])
+
+    #If last node in the path
+    if angle_tree.level == end_level:
+        #Add any phase--not relevant for real numbers
+        #Add completed path multi control
+        control_qubits = []
+        if not extra_control is None:
+            control_qubits.append(extra_control)
+
+        for node, is_left in current_path:
+            if (node.left and node.right) or node.is_ctrl:
+                if not is_left:
+                    circuit.x(qubit_order[node.level])
+                control_qubits.append(qubit_order[node.level])
+        
+        normalization, _ = current_path[-1]
+        angle = 2 * np.arccos(normalization.angle_norm)
+        circuit = multi_control.parallel_mcxry(circuit, angle, control_qubits, 
+            path_qubit, rotate_qubit, helper_qubits=[helper_qubit])
+        
+        for node, is_left in current_path:
+            if (node.left and node.right) or node.is_ctrl:
+                if not is_left:
+                    circuit.x(qubit_order[node.level])
+            
+        # print(circuit.draw())
+        return circuit
+    
+    #Do nothing if is_ctrl
+    if not angle_tree.is_ctrl and (angle_tree.left and angle_tree.right):
+        #2-ctrl ry gate
+        if not last_1child is None:
+            # circuit.ry(angle_tree.angle_y / 2, qubit_order[angle_tree.level])
+            # circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
+            # circuit.ry(-angle_tree.angle_y / 2, qubit_order[angle_tree.level])
+            circuit.append(RYGate(angle_tree.angle_y).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[angle_tree.level]])
+        else:
+            circuit.cry(angle_tree.angle_y, path_qubit, qubit_order[angle_tree.level])
+    elif not angle_tree.is_ctrl and angle_tree.left:
+        #2-ctrl not gate
+        if not last_1child is None:
+            circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
+        else:
+            circuit.cx(path_qubit, qubit_order[angle_tree.level])
+
+    
+    circuit = bdd_based(angle_tree.left, circuit, rotate_qubit, 
+        helper_qubit, path_qubit, qubit_order, 
+        multi_control=multi_control, current_path=current_path + [(angle_tree, True)], 
+        last_1child=angle_tree,end_level=end_level, extra_control=extra_control) #Do highest sv first
+    circuit = bdd_based(angle_tree.right, circuit, rotate_qubit, 
+        helper_qubit, path_qubit, qubit_order, 
+        multi_control=multi_control, current_path=current_path + [(angle_tree, False)], 
+        last_1child=last_1child,end_level=end_level, extra_control=extra_control)
+
+    return circuit

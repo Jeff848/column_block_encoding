@@ -1,5 +1,7 @@
 import numpy as np
 from qiskit import QuantumCircuit
+from qiskit.circuit.library.standard_gates import SwapGate
+
 
 def get_padded_matrix(a):
     n, m = a.shape
@@ -63,7 +65,7 @@ class QiskitMCWrapper():
         return circ
 
     @staticmethod
-    def half_control(circ, unitary, control_qubits, target_qubits, helper_qubit):
+    def half_control(circ, unitary, control_qubits, target_qubits, helper_qubit, ctrl_initialize=None):
         if helper_qubit:
             circ.mcx(control_qubits, helper_qubit)
             circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
@@ -173,33 +175,35 @@ class SwapPrepWrapper():
         self.return_circuit = return_circuit
 
     def initialize(self, circ, states, target_qubits):
-        logn = int(len(target_qubits)/2)
-        init_circ = QuantumCircuit(logn)
+        # logn = int(len(target_qubits)/2)
+        # init_circ = QuantumCircuit(logn)
         if self.return_circuit:
-            circ = self.wrapped_class.initialize(init_circ, states, list(range(logn)))
+            circ = self.wrapped_class.initialize(circ, states, list(range(len(target_qubits))))
         else:
-            self.wrapped_class.initialize(circ, states, list(range(logn)))
+            self.wrapped_class.initialize(circ, states, list(range(len(target_qubits))))
         
-        circ = circ.compose(init_circ, target_qubits[:logn])
-        for i in range(logn):
-            circ.swap(i, logn + i)
-        circ = circ.compose(init_circ.inverse(), target_qubits[:logn])
+        # circ = circ.compose(init_circ, target_qubits[:logn])
+        # for i in range(logn):
+        #     circ.swap(i, logn + i)
+        # circ = circ.compose(init_circ.inverse(), target_qubits[:logn])
         
         return circ
 
-    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubit):
+    def ctrl_initialize(self, circ, unitary, target_qubits, ctrl_qubits):
         logn = int(len(target_qubits)/2)
-        init_circ = QuantumCircuit(logn)
-        if self.return_circuit:
-            circ = self.wrapped_class.initialize(init_circ, states, list(range(logn)))
-        else:
-            self.wrapped_class.initialize(circ, states, list(range(logn)))
-        
-        circ = circ.compose(init_circ, target_qubits[:logn])
+        # init_circ = QuantumCircuit(logn)
+        # if self.return_circuit:
+        #     circ = self.wrapped_class.initialize(init_circ, states, list(range(logn)))
+        # else:
+        #     self.wrapped_class.initialize(circ, states, list(range(logn)))
+        # print(unitary.draw())
+        circ = circ.compose(unitary, target_qubits)
         for i in range(logn):
-            circ.cswap(ctrl_qubit, target_qubits[i], target_qubits[i+logn])
-        circ = circ.compose(init_circ.inverse(), target_qubits[:logn])
-        
+            circ = circ.compose(SwapGate().control(len(ctrl_qubits)), ctrl_qubits + [target_qubits[i]] + [target_qubits[i+logn]])
+        for i in range(logn):
+            circ.h(target_qubits[i])
+        # circ = circ.compose(unitary.inverse(), target_qubits)
+        print(circ.draw())
         return circ
 
     def get_ancillas(self, sparsity, length, wide_bin_state_prep=False):

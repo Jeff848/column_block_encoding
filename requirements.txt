@@ -6,3 +6,4 @@ deprecation
 numpy
 tensorly
 graphviz
+bitstring
