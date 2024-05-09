@@ -175,8 +175,8 @@ class NodeAngleTree:
         return txt
 
 
-#Last ctrl level should contain an offset 
-def create_angles_tree(state_tree, subnorm=1, end_level=1, is_ctrl=True):
+#Last level contains subnorm of path
+def create_angles_tree(state_tree, subnorm=1, end_level=1):
     """
     :param state_tree: state_tree is an output of state_decomposition function
     :param tree: used in the recursive calls
@@ -186,37 +186,127 @@ def create_angles_tree(state_tree, subnorm=1, end_level=1, is_ctrl=True):
         return None, subnorm
 
     mag = 0.0
-    if state_tree.ntype == NodeType.TARGET and state_tree.mag != 0.0:
-        if state_tree.right:
-            mag = state_tree.right.mag / state_tree.mag
+    if state_tree.ntype == NodeType.TARGET and state_tree.mag != 0.0 and state_tree.right:
+        mag = state_tree.right.mag / state_tree.mag * np.sqrt(2)**(state_tree.right.level - state_tree.level-1)
 
 
     # Avoid out-of-domain value due to numerical error.
     if mag < -1.0:
-        angle_y = -np.pi
+        angle_y = 2*np.pi
     elif mag > 1.0:
-        angle_y = np.pi
+        angle_y = 0
     else:
         angle_y = 2 * np.arccos(mag)
 
+    is_ctrl = state_tree.ntype == NodeType.CTRL 
     node=None
     if state_tree.level <= end_level:
         node = NodeAngleTree(
             state_tree.index, state_tree.level, angle_y, subnorm, is_ctrl, None, None
         )
 
-
     if state_tree.level < end_level:
+
         subnorm_l = subnorm
-        if state_tree.ntype == NodeType.CTRL:
-            if state_tree.mag != 0 and state_tree.right:
-                subnorm_l = subnorm * state_tree.right.mag / state_tree.mag
-        node.right, min_subnorm_l = create_angles_tree(state_tree.right, subnorm=subnorm_l, end_level=end_level, is_ctrl=not is_ctrl)
+
+        if state_tree.right and state_tree.mag != 0 :
+            # #For ctrl nodes
+            # if state_tree.ntype == NodeType.CTRL:
+            #     #Get the subnormalization for the child of the current node
+            #     subnorm_l = subnorm_l * state_tree.right.mag / state_tree.mag
+
+            prev_mag = state_tree.right.mag
+            #Go reverse from bottom to top
+            for level in range(state_tree.right.level - 1, state_tree.level, -1):
+                current_mag = state_tree.right.mag * np.sqrt(2)**(state_tree.right.level - level)
+                if level % 2 == 0: #For ctrl nodes
+                    subnorm_l = subnorm_l * prev_mag / current_mag
+                prev_mag = current_mag
+                
+            if state_tree.ntype == NodeType.CTRL:
+                subnorm_l = subnorm_l * prev_mag / state_tree.mag
+
+
+        # if state_tree.ntype == NodeType.CTRL:
+        #     if state_tree.mag != 0 and state_tree.right:
+        #         for level in range(state_tree.level + 2, state_tree.right.level, 2):
+        #             subnorm_l = subnorm_l / np.sqrt(2)
+        #         subnorm_l = subnorm_l * state_tree.right.mag / state_tree.mag
+        # elif state_tree.ntype == NodeType.TARGET:
+        #     if state_tree.mag != 0 and state_tree.right:
+        #         for level in range(state_tree.level + 1, state_tree.right.level, 2):
+        #             subnorm_l = subnorm_l / np.sqrt(2)
+
+        # print(subnorm_l)
+
+        # if state_tree.ntype == NodeType.CTRL and state_tree.right and state_tree.mag != 0:
+        #     subnorm_l = subnorm_l * state_tree.right.mag/state_tree.mag
+            
+                
+                
+            
+            # for level in range(state_tree.level + 1, state_tree.right.level):
+            #     if level % 2 == 0: #is ctrl
+            #         subnorm_l = subnorm_l / np.sqrt(2)
+            
+
+
+        node.right, min_subnorm_l = create_angles_tree(state_tree.right, subnorm=subnorm_l, end_level=end_level)
         subnorm_r = subnorm
-        if state_tree.ntype == NodeType.CTRL:
-            if state_tree.mag != 0 and state_tree.left:
-                subnorm_r = subnorm * state_tree.left.mag / state_tree.mag
-        node.left, min_subnorm_r = create_angles_tree(state_tree.left, subnorm=subnorm_r, end_level=end_level, is_ctrl=not is_ctrl)
+
+
+        if state_tree.left and state_tree.mag != 0 :
+            prev_mag = state_tree.left.mag
+            #Go reverse from bottom to top
+            for level in range(state_tree.left.level - 1, state_tree.level, -1):
+                current_mag = state_tree.left.mag * np.sqrt(2)**(state_tree.left.level - level)
+
+                if level % 2 == 0: #For ctrl nodes
+                    subnorm_r = subnorm_r * prev_mag / current_mag
+                prev_mag = current_mag
+                
+            if state_tree.ntype == NodeType.CTRL:
+                subnorm_r = subnorm_r * prev_mag / state_tree.mag
+
+
+        # if state_tree.left and state_tree.mag != 0 :
+        #     #For ctrl nodes
+        #     if state_tree.ntype == NodeType.CTRL:
+        #         #Get the subnormalization for the child
+        #         subnorm_r = subnorm_r * state_tree.left.mag / state_tree.mag
+
+        #         #If there are hidden layers in between parent and child
+        #         if (state_tree.left.level - state_tree.level) > 1:
+        #             #Discount subnormalization from hidden target nodes (targets introduce sqrt(2) subnormalization)
+        #             for level in range(state_tree.level+1, state_tree.left.level):
+        #                 if level %2 != 0:
+        #                     subnorm_l = subnorm_r * np.sqrt(2)
+        #     #Otherwise if the current node is target and there are hidden ctrl nodes
+        #     elif (state_tree.left.level - state_tree.level) > 1:
+        #         subnorm_l = subnorm_l * 1 / (np.sqrt(2)**(state_tree.left.level - state_tree.level-1))
+
+        #         #If there are hidden layers in between parent and child
+        #         if (state_tree.left.level - state_tree.level) > 1:
+        #             #Discount subnormalization from hidden target nodes (targets introduce sqrt(2) subnormalization)
+        #             for level in range(state_tree.level, state_tree.left.level):
+        #                 if level %2 != 0:
+        #                     subnorm_l = subnorm_l * np.sqrt(2)
+
+        # if state_tree.left and state_tree.mag != 0 :
+        #     if state_tree.ntype == NodeType.CTRL:
+        #         subnorm_r = subnorm_r * state_tree.left.mag / state_tree.mag
+        #     elif (state_tree.left.level - state_tree.level) > 1:
+        #         subnorm_r = subnorm_r * state_tree.left.mag * np.sqrt(2)**(state_tree.left.level - state_tree.level-1) / state_tree.mag
+            
+        #     if (state_tree.left.level - state_tree.level) > 1:
+        #         print("HelloL")
+                
+        #         print(str(state_tree))
+        #         print(str(state_tree.left))
+        #         #Discount subnormalization from hidden target gates
+
+
+        node.left, min_subnorm_r = create_angles_tree(state_tree.left, subnorm=subnorm_r, end_level=end_level)
         subnorm = min(min_subnorm_l, min_subnorm_r)
 
     return node, subnorm

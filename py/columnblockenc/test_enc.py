@@ -11,7 +11,7 @@
 # from ._bdd_tree_util import convert_tree_to_bdd
 from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
 from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
-from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper
+from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
 from multi_control import ItenMC, HalfItenMC
 from bin_prep import SNPWideBinPrepWrapper
 from _angle_tree_util import top_down
@@ -245,17 +245,10 @@ def test_topdown():
 
 def test_bdd():
     n = 2
-    # a = np.array([
-    #     [2, 0, 1, 2],
-    #     [0, 0, 2, 2],
-    #     [1, 2, 2, 1],
-    #     [2, 2, 2, 2]
-    # ])
-    a = np.array([[2, 2, 2, 2],
-        [2, 2, 1, 2],
-        [1, 2, 2, 1],
-        [2, 2, 2, 1]])
-    # a = gen_random_snp_matrix_prob(n)
+
+    a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
+    if np.all(a == 2):
+        return
     print(a)
 
     circ, alpha = bdd_based_block_encoding(a)
@@ -281,6 +274,7 @@ def test_swap():
 # test_simple()
 
 # test_direct()
+# for i in range(10):
 test_bdd()
 # test_swap()
 
@@ -291,3 +285,7 @@ test_bdd()
 # leaves_bdd, _ = leavesBDD(centered_bdd)
 # angle_tree, _ = create_angles_tree(centered_bdd, end_level=leaves_bdd[0].level, is_ctrl=True, subnorm=1)
 # print(tree_visual_representation(angle_tree))
+# circuit = QuantumCircuit(5)
+# circuit.mcx([0,1,2], 3, ancilla_qubits=[4])
+# transpiled = transpile(circuit, basis_gates=['u', 'cx'], optimization_level=0)
+# print(transpiled.draw())

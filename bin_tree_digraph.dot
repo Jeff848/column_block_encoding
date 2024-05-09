@@ -1,29 +1,134 @@
-[[2 2 2 2]
- [2 2 2 2]
- [2 1 2 2]
- [2 2 2 2]]
 digraph {
 	"0_0
-1.00_NodeType.CTRL"
-	"1_1
-1.00_NodeType.TARGET"
+3.61_NodeType.CTRL"
+	"1_0
+3.61_NodeType.TARGET"
 	"0_0
-1.00_NodeType.CTRL" -> "1_1
+3.61_NodeType.CTRL" -> "1_0
+3.61_NodeType.TARGET"
+	"2_0
+2.83_NodeType.CTRL"
+	"1_0
+3.61_NodeType.TARGET" -> "2_0
+2.83_NodeType.CTRL"
+	"3_0
+2.00_NodeType.TARGET"
+	"2_0
+2.83_NodeType.CTRL" -> "3_0
+2.00_NodeType.TARGET"
+	"4_0
+2.00_NodeType.VALUE"
+	"3_0
+2.00_NodeType.TARGET" -> "4_0
+2.00_NodeType.VALUE"
+	"4_1
+0.00_NodeType.VALUE"
+	"3_0
+2.00_NodeType.TARGET" -> "4_1
+0.00_NodeType.VALUE" [style=dotted]
+	"4_0
+2.00_NodeType.VALUE"
+	"2_0
+2.83_NodeType.CTRL" -> "4_0
+2.00_NodeType.VALUE" [style=dotted]
+	"2_1
+2.24_NodeType.CTRL"
+	"1_0
+3.61_NodeType.TARGET" -> "2_1
+2.24_NodeType.CTRL" [style=dotted]
+	"3_2
+2.24_NodeType.TARGET"
+	"2_1
+2.24_NodeType.CTRL" -> "3_2
+2.24_NodeType.TARGET"
+	"4_4
+1.00_NodeType.VALUE"
+	"3_2
+2.24_NodeType.TARGET" -> "4_4
+1.00_NodeType.VALUE"
+	"4_0
+2.00_NodeType.VALUE"
+	"3_2
+2.24_NodeType.TARGET" -> "4_0
+2.00_NodeType.VALUE" [style=dotted]
+	"3_3
+1.00_NodeType.TARGET"
+	"2_1
+2.24_NodeType.CTRL" -> "3_3
 1.00_NodeType.TARGET" [style=dotted]
-	"2_2
-1.00_NodeType.CTRL"
+	"4_4
+1.00_NodeType.VALUE"
+	"3_3
+1.00_NodeType.TARGET" -> "4_4
+1.00_NodeType.VALUE"
+	"4_1
+0.00_NodeType.VALUE"
+	"3_3
+1.00_NodeType.TARGET" -> "4_1
+0.00_NodeType.VALUE" [style=dotted]
 	"1_1
-1.00_NodeType.TARGET" -> "2_2
-1.00_NodeType.CTRL"
-	"3_4
+3.61_NodeType.TARGET"
+	"0_0
+3.61_NodeType.CTRL" -> "1_1
+3.61_NodeType.TARGET" [style=dotted]
+	"2_2
+2.24_NodeType.CTRL"
+	"1_1
+3.61_NodeType.TARGET" -> "2_2
+2.24_NodeType.CTRL"
+	"3_3
 1.00_NodeType.TARGET"
 	"2_2
-1.00_NodeType.CTRL" -> "3_4
+2.24_NodeType.CTRL" -> "3_3
 1.00_NodeType.TARGET"
-	"4_9
--1.00_NodeType.VALUE"
-	"3_4
-1.00_NodeType.TARGET" -> "4_9
--1.00_NodeType.VALUE" [style=dotted]
+	"4_4
+1.00_NodeType.VALUE"
+	"3_3
+1.00_NodeType.TARGET" -> "4_4
+1.00_NodeType.VALUE"
+	"4_1
+0.00_NodeType.VALUE"
+	"3_3
+1.00_NodeType.TARGET" -> "4_1
+0.00_NodeType.VALUE" [style=dotted]
+	"3_2
+2.24_NodeType.TARGET"
+	"2_2
+2.24_NodeType.CTRL" -> "3_2
+2.24_NodeType.TARGET" [style=dotted]
+	"4_4
+1.00_NodeType.VALUE"
+	"3_2
+2.24_NodeType.TARGET" -> "4_4
+1.00_NodeType.VALUE"
+	"4_0
+2.00_NodeType.VALUE"
+	"3_2
+2.24_NodeType.TARGET" -> "4_0
+2.00_NodeType.VALUE" [style=dotted]
+	"2_3
+2.83_NodeType.CTRL"
+	"1_1
+3.61_NodeType.TARGET" -> "2_3
+2.83_NodeType.CTRL" [style=dotted]
+	"4_0
+2.00_NodeType.VALUE"
+	"2_3
+2.83_NodeType.CTRL" -> "4_0
+2.00_NodeType.VALUE"
+	"3_0
+2.00_NodeType.TARGET"
+	"2_3
+2.83_NodeType.CTRL" -> "3_0
+2.00_NodeType.TARGET" [style=dotted]
+	"4_0
+2.00_NodeType.VALUE"
+	"3_0
+2.00_NodeType.TARGET" -> "4_0
+2.00_NodeType.VALUE"
+	"4_1
+0.00_NodeType.VALUE"
+	"3_0
+2.00_NodeType.TARGET" -> "4_1
+0.00_NodeType.VALUE" [style=dotted]
 }
-

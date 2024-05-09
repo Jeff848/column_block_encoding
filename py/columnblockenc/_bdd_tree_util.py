@@ -23,24 +23,24 @@ def leavesAndParents(tree):
 
 def leavesBDD(tree):
     leaves = []
-    stack = [tree]
+    stack = [(tree, 1)]
     leafToFreq = {}
     while len(stack) > 0:
-        current_node = stack.pop()
+        current_node, num_ways = stack.pop()
 
         # visited.add(str(current_node.level) + ":" + str(current_node.index))
         node_hash = str(current_node.level) + "_" + str(current_node.index)
         if current_node.ntype == NodeType.VALUE and not node_hash in leafToFreq:
             leaves.append(current_node)
-            leafToFreq[node_hash] = 1
+            leafToFreq[node_hash] = num_ways
         elif current_node.ntype == NodeType.VALUE:
-            leafToFreq[node_hash] += 1
+            leafToFreq[node_hash] += num_ways
         
         if current_node.right:
-            stack.append(current_node.right)
+            stack.append((current_node.right, 2**(current_node.right.level - current_node.level - 1)))
         
         if current_node.left:
-            stack.append(current_node.left)
+            stack.append((current_node.left,  2**(current_node.left.level - current_node.level - 1)))
 
     return leaves, leafToFreq
 
@@ -82,6 +82,9 @@ def convert_tree_to_bdd(tree, parent_nodes=None, current_nodes=None):
         for node in current_nodes:
             parent_nodes.extend(node.parents_right)
 
+        if len(parent_nodes)==0:
+            break
+
         #Merge Rule
         merge_nodes = []
         while len(current_nodes) > 0:
@@ -118,7 +121,6 @@ def convert_tree_to_bdd(tree, parent_nodes=None, current_nodes=None):
         #Deletion Rule
         while len(current_nodes) > 0:
             current_node = current_nodes.pop(0)
-            
             if current_node.left and current_node.right and current_node.left == current_node.right:
                 #Remove this from child parents list
                 # print("Deleting " + str(current_node.level) + "_" + str(current_node.index))
@@ -149,7 +151,9 @@ def common_case_centering(tree):
     # print(leafFreq)
 
     #Get most common case
+
     common_leaf_ind = max(leafFreq, key=leafFreq.get)
+    # print(common_leaf_ind)
     for leaf in leaves:
         if common_leaf_ind == str(leaf.level) + "_" + str(leaf.index):
             common_leaf = leaf
@@ -164,7 +168,7 @@ def common_case_centering(tree):
 
     for leaf in leaves:
         if leaf != common_leaf:
-            leaf.mag = leaf.mag - common_leaf.mag
+            leaf.mag = np.abs(leaf.mag - common_leaf.mag)
 
     #Do postorder traversal of tree to fix corresponding magnitudes
     tree = recalculate_mag_bdd(tree)
@@ -198,10 +202,18 @@ def recalculate_mag_bdd(tree):
     tree.mag = np.sqrt(mag)
     return tree
 
-def bdd_based(angle_tree, circuit, rotate_qubit, helper_qubit, path_qubit, qubit_order,
-    multi_control=ItenMC(), current_path=[], last_1child=None, end_level=1, extra_control=None):
+def bdd_based(angle_tree, circuit, rotate_qubit, helper_qubit, path_qubit, sparse_qubit, qubit_order,
+    multi_control=ItenMC(), current_path=[], last_1childs=[], end_level=1, extra_control=None):
     """pre order traversal"""
     
+    # print(str(angle_tree))
+
+    last_1childs_levels = [last_1child.level for last_1child in last_1childs]
+    # path_levels = [(node.level,is_right) for node, is_right in current_path]
+    # print("Last 1childs")
+    # print(last_1childs_levels)
+    # print("Path")
+    # print(path_levels)
 
     if angle_tree is None: 
         return circuit
@@ -214,15 +226,16 @@ def bdd_based(angle_tree, circuit, rotate_qubit, helper_qubit, path_qubit, qubit
         last_level = last_node.level
 
     if not last_level is None and angle_tree.level - last_level > 1:
-        for level in range(last_level + 1, angle_tree.level):
-            if level%2 != 0 and last_1child:
+        for level in range(last_level + 1, angle_tree.level): #Not counting last_level
+            if level%2 != 0: #If not ctrl
                 # circuit.ry(np.pi / 4, qubit_order[level])
                 # circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[level])
                 # circuit.ry(-np.pi / 4, qubit_order[level])
-                circuit.append(RYGate(np.pi/2).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[level]])
-
+                # circuit.append(RYGate(np.pi/2).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[level]])
+                circuit = multi_control.mcry(circuit, np.pi/2, [path_qubit] + list(qubit_order[last_1childs_levels]), qubit_order[level])
+                
     #If last node in the path
-    if angle_tree.level == end_level:
+    if angle_tree.level >= end_level:
         #Add any phase--not relevant for real numbers
         #Add completed path multi control
         control_qubits = []
@@ -233,46 +246,66 @@ def bdd_based(angle_tree, circuit, rotate_qubit, helper_qubit, path_qubit, qubit
             if (node.left and node.right) or node.is_ctrl:
                 if not is_left:
                     circuit.x(qubit_order[node.level])
+                # if node.level != end_level - 1:
                 control_qubits.append(qubit_order[node.level])
         
-        normalization, _ = current_path[-1]
-        angle = 2 * np.arccos(normalization.angle_norm)
+        # last_node, _ = current_path[-1]
+        # norm = last_node.angle_norm
+        # for level in range(last_node.level, angle_tree.level): #Counting the current level
+        #     print("Adjusting norm")
+        #     print(level)
+        #     if level % 2 == 0: #If splits a ctrl node
+        #         norm = norm / np.sqrt(2)
+        norm = np.clip(angle_tree.angle_norm, 0, 1) #Should be correctly calculated by angle tree
+        angle = 2 * np.arccos(norm)
+
         circuit = multi_control.parallel_mcxry(circuit, angle, control_qubits, 
             path_qubit, rotate_qubit, helper_qubits=[helper_qubit])
+        # circuit = multi_control.mcx(circuit, control_qubits, sparse_qubit)
+        
         
         for node, is_left in current_path:
             if (node.left and node.right) or node.is_ctrl:
                 if not is_left:
                     circuit.x(qubit_order[node.level])
-            
-        # print(circuit.draw())
+        
         return circuit
     
+    left_list = list(last_1childs)
+    right_list = list(last_1childs)
     #Do nothing if is_ctrl
     if not angle_tree.is_ctrl and (angle_tree.left and angle_tree.right):
         #2-ctrl ry gate
-        if not last_1child is None:
-            # circuit.ry(angle_tree.angle_y / 2, qubit_order[angle_tree.level])
-            # circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
-            # circuit.ry(-angle_tree.angle_y / 2, qubit_order[angle_tree.level])
-            circuit.append(RYGate(angle_tree.angle_y).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[angle_tree.level]])
-        else:
-            circuit.cry(angle_tree.angle_y, path_qubit, qubit_order[angle_tree.level])
+        circuit = multi_control.mcry(circuit, angle_tree.angle_y, [path_qubit] + list(qubit_order[last_1childs_levels]), qubit_order[angle_tree.level])
+        left_list = []
+        # if len(last_1childs) > 0:
+        #     right_list = [last_1childs[-1]]
+        # if not last_1child is None:
+        #     # circuit.ry(angle_tree.angle_y / 2, qubit_order[angle_tree.level])
+        #     # circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
+        #     # circuit.ry(-angle_tree.angle_y / 2, qubit_order[angle_tree.level])
+        #     circuit.append(RYGate(angle_tree.angle_y).control(2),[path_qubit] + [qubit_order[last_1child.level]] + [qubit_order[angle_tree.level]])
+        # else:
+        #     circuit.cry(angle_tree.angle_y, path_qubit, qubit_order[angle_tree.level])
     elif not angle_tree.is_ctrl and angle_tree.left:
         #2-ctrl not gate
-        if not last_1child is None:
-            circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
-        else:
-            circuit.cx(path_qubit, qubit_order[angle_tree.level])
+        circuit = multi_control.mcx(circuit, [path_qubit] + list(qubit_order[last_1childs_levels]), qubit_order[angle_tree.level])
+        left_list = []
+        # if len(last_1childs) > 0:
+        #     right_list = [last_1childs[-1]]
+        # if not last_1child is None:
+        #     circuit = multi_control.efficient_toffoli(circuit, path_qubit, qubit_order[last_1child.level], qubit_order[angle_tree.level])
+        # else:
+        #     circuit.cx(path_qubit, qubit_order[angle_tree.level])
+    left_list = left_list + [angle_tree]
 
-    
     circuit = bdd_based(angle_tree.left, circuit, rotate_qubit, 
-        helper_qubit, path_qubit, qubit_order, 
+        helper_qubit, path_qubit, sparse_qubit, qubit_order, 
         multi_control=multi_control, current_path=current_path + [(angle_tree, True)], 
-        last_1child=angle_tree,end_level=end_level, extra_control=extra_control) #Do highest sv first
+        last_1childs=left_list,end_level=end_level, extra_control=extra_control) #Do highest sv first
     circuit = bdd_based(angle_tree.right, circuit, rotate_qubit, 
-        helper_qubit, path_qubit, qubit_order, 
+        helper_qubit, path_qubit, sparse_qubit, qubit_order, 
         multi_control=multi_control, current_path=current_path + [(angle_tree, False)], 
-        last_1child=last_1child,end_level=end_level, extra_control=extra_control)
+        last_1childs=right_list,end_level=end_level, extra_control=extra_control)
 
     return circuit

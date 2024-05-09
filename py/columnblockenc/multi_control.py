@@ -22,17 +22,17 @@ class ItenMC():
         return circ
 
     def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
-        if not helper_qubits:
-            return circ
+        # if not helper_qubits:
+        #     return circ
         circ.mcx(control_qubits, target_qubit)
         return circ
         # return self.multicontrol(circ, control_qubits, helper_qubits[0], target_qubit)
 
     def mcry(self, circ, rotate_angle, control_qubits, target_qubit, helper_qubits=None):
-        print(rotation_angle)
+        # print(rotate_angle)
         # circ.ry(-rotate_angle / 2, target_qubit)
         # circ.mcry(rotate_angle, control_qubits, target_qubit)
-        # circ = self.mcx(circ, control_qubits, target_qubit, helper_qubits)
+        circ = circ.compose(RYGate(rotate_angle).control(len(control_qubits)), control_qubits + [target_qubit])
         # circ.ry(rotate_angle / 2, target_qubit)
         return circ
 
@@ -56,7 +56,6 @@ class ItenMC():
 
         k1 = int(np.ceil(n/2))
         k2 = int(n - k1 - 1)
-        print(rotate_qubit)
         circ.ry(angle/2, rotate_qubit)
         circ = self.shor_halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
         circ = self.parallel_shor_halfcontrol(circ, control_qubits[:k1], 

@@ -9,6 +9,7 @@ from multi_control import HalfItenMC, ItenMC
 from _angle_tree_util import top_down, state_decomposition, create_angles_tree
 from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
 from _bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
+import os,sys
 
 #Assuming SNP block matrix
 def simple_block_encoding(a, multi_control=None):
@@ -273,44 +274,60 @@ def bdd_based_block_encoding(a, multi_control=None):
     #Construct ROBDD from tree
     robdd = convert_tree_to_bdd(binary_tree)
 
+    with open('/Users/jm/Documents/QResearch/columnblockenc/bin_tree_digraph.dot', 'w') as f:
+        f.write(str(tree_visual_representation(robdd)))  
+
+    #Track leaf nodes for reference
+    leaves_bdd, leavesToFreq = leavesBDD(robdd)
+    print(leavesToFreq)
+
     #Use common case centering to make a sparse ROBDD
     common_case, sparse_robdd = common_case_centering(robdd)
     
+
     #Track leaf nodes for reference
     leaves_bdd, leavesToFreq = leavesBDD(sparse_robdd)
 
     #Construct angle tree of paths
-    angle_tree, subnorm = create_angles_tree(sparse_robdd, end_level=leaves_bdd[0].level, is_ctrl=True, subnorm=1)
+    angle_tree, subnorm = create_angles_tree(sparse_robdd, end_level=leaves_bdd[0].level, subnorm=1)
 
-    # print(tree_visual_representation(sparse_robdd))
+    # print(tree_visual_representation(sparse_robdd)) 
+    
+    with open('/Users/jm/Documents/QResearch/columnblockenc/sparse_bin_tree_digraph.dot', 'w') as f:
+        f.write(str(tree_visual_representation(sparse_robdd)))  
+    with open('/Users/jm/Documents/QResearch/columnblockenc/angle_digraph.dot', 'w') as f:
+        f.write(str(tree_visual_representation(angle_tree)))
+        # print("Hello")
+
     # print(tree_visual_representation(angle_tree))
     # print(common_case)
 
 
     #Construct sparse bdd circuit
-    u_circ = QuantumCircuit(2*logn + 4)
+    u_circ = QuantumCircuit(2*logn + 5)
     path_qubit = 2*logn
-    auxiliary_qubit = 2*logn+1
-    rotate_qubit = 2*logn+2
-    lcu_qubit = 2*logn+3
+    sparse_qubit = 2*logn+1
+    auxiliary_qubit = 2*logn+2
+    rotate_qubit = 2*logn+3
+    lcu_qubit = 2*logn+4
 
 
-    u_circ.cx(lcu_qubit, path_qubit) #Initialize path qubit for tracking if path is completed
-    # u_circ.x(path_qubit)
+    # u_circ.x(path_qubit) #Initializ/ze path qubit for tracking if path is completed
+    u_circ.cx(lcu_qubit, path_qubit)
 
     qubits = np.array(list(range(2*logn)))
     qubits[::2] = np.array(list(range(logn-1, -1, -1)))
     qubits[1::2] = np.array(list(range(2*logn-1, logn-1, -1)))
 
     u_circ = bdd_based(angle_tree, u_circ, rotate_qubit, 
-        auxiliary_qubit, path_qubit, qubits, multi_control=multi_control, end_level=leaves_bdd[0].level, 
+        auxiliary_qubit, path_qubit, sparse_qubit, qubits, multi_control=multi_control, end_level=leaves_bdd[0].level, 
     # )
         extra_control=lcu_qubit)
 
     # print(u_circ.draw())
         
     #Assemble Block encoding circuit
-    circ = QuantumCircuit(2*logn + 4)
+    circ = QuantumCircuit(2*logn + 5)
 
     #Get magnitude of sparse circuit
     sparse_mag = sparse_robdd.mag
@@ -326,8 +343,8 @@ def bdd_based_block_encoding(a, multi_control=None):
         circ.ch(lcu_qubit, i)
     circ.x(lcu_qubit)
 
-    circ.append(u_circ, list(range(2*logn+4)))
-    # print(u_circ.draw())
+    circ.append(u_circ, list(range(2*logn+5)))
+    print(u_circ.draw())
 
     circ.h(lcu_qubit)
 
@@ -338,7 +355,7 @@ def bdd_based_block_encoding(a, multi_control=None):
     for i in range(logn, 2 * logn):
         circ.h(i)
 
-    # print(circ.draw())
+    print(circ.draw())
 
     alpha = np.power(np.sqrt(2), logn) * (total_mag) * np.sqrt(2)
     return circ, alpha
