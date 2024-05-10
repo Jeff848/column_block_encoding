@@ -5,7 +5,7 @@ import numpy as np
 # from ._angle_tree_util import top_down, state_decomposition, create_angles_tree
 # from ._angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
 from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
-from multi_control import HalfItenMC, ItenMC
+from multi_control import HalfItenMC, ItenMC, IntelligentMC
 from _angle_tree_util import top_down, state_decomposition, create_angles_tree
 from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
 from _bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
@@ -324,7 +324,7 @@ def bdd_based_block_encoding(a, multi_control=None):
     # )
         extra_control=lcu_qubit)
 
-    # print(u_circ.draw())
+    print(u_circ.draw())
         
     #Assemble Block encoding circuit
     circ = QuantumCircuit(2*logn + 5)
@@ -344,7 +344,7 @@ def bdd_based_block_encoding(a, multi_control=None):
     circ.x(lcu_qubit)
 
     circ.append(u_circ, list(range(2*logn+5)))
-    print(u_circ.draw())
+    # print(u_circ.draw())
 
     circ.h(lcu_qubit)
 

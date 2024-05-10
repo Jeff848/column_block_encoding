@@ -27,6 +27,8 @@ from qiskit import QuantumCircuit
 import numpy as np
 from sympy import Matrix
 from bitstring import BitArray
+from qiskit.circuit.library.standard_gates import RYGate
+
 
 
 def test_be_0():
@@ -157,9 +159,11 @@ def test_equiv(circ1, circ2):
     transpiled.save_state()
     result = simulator.run(transpiled).result()
     u_be2 = result.get_unitary(transpiled)
-
+    print(np.asarray(u_be1))
+    print(np.asarray(u_be2))
+    circ1_shape = u_be1.shape
     np.testing.assert_array_almost_equal(
-       np.asarray(u_be1),  np.asarray(u_be2)
+       np.asarray(u_be1),  np.asarray(u_be2[:circ1_shape[0], :circ1_shape[1]])
     )
 
     
@@ -244,9 +248,10 @@ def test_topdown():
     test_general(n, a, circ, alpha)
 
 def test_bdd():
-    n = 2
+    n = 3
 
     a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
+    # a = gen_random_snp_matrix_prob(n)
     if np.all(a == 2):
         return
     print(a)
@@ -256,7 +261,7 @@ def test_bdd():
     test_general(n, a, circ, alpha)
         
 def test_swap():
-    n = 2
+    n = 5
     a = gen_random_snp_matrix_prob(n)   
     print(a)
     circ, alpha = column_block_encoding(a, multi_control=QiskitMCWrapper, mc_helper_qubit=True, 
@@ -285,7 +290,27 @@ test_bdd()
 # leaves_bdd, _ = leavesBDD(centered_bdd)
 # angle_tree, _ = create_angles_tree(centered_bdd, end_level=leaves_bdd[0].level, is_ctrl=True, subnorm=1)
 # print(tree_visual_representation(angle_tree))
-# circuit = QuantumCircuit(5)
-# circuit.mcx([0,1,2], 3, ancilla_qubits=[4])
+# circuit = QuantumCircuit(2)
+# circuit.cry(np.pi, 0, 1)
 # transpiled = transpile(circuit, basis_gates=['u', 'cx'], optimization_level=0)
 # print(transpiled.draw())
+
+# for angle in np.arange(0.1, np.pi, 0.01):
+#     print(angle)
+#     circ1 = QuantumCircuit(9)
+#     # circ1.append(RYGate(angle).control(2), [0, 1, 2])
+#     ctrls = list(range(6))
+#     circ1.mcx(ctrls, 7)
+#     # circ1.mcx([0, 1, 2, 3, 4, 5], 7)
+#     circ1.append(RYGate(angle).control(6), ctrls + [8])
+
+#     circ2 = QuantumCircuit(10)
+    
+#     # new_angle = 2 * np.arcsin(np.cos(angle))
+#     # circ2.ry(new_angle/2, 2)
+#     # circ2.mcx([0, 1], 2)
+#     # circ2.ry(-new_angle/2, 2)
+#     # circ2.mcx([0, 1], 2)
+#     circ2 = ItenMC().parallel_mcxry(circ2, angle, ctrls, [7], [8], helper_qubits=[9])
+#     print(circ2.draw())
+#     test_equiv(circ1, circ2)
