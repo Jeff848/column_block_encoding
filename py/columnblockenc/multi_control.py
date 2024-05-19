@@ -7,22 +7,22 @@ class ItenMC():
     def __init__(self):
         pass
     
-    def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
-        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
-        if helper_qubit:
-            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
+    def control(self, circ, unitary, control_qubits, target_qubits, helper_qubits=None):
+        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubits)
+        if helper_qubits and helper_qubits[0]:
+            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubits[0])
         return circ
 
-    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None, ctrl_initialize=None):
-        if helper_qubit:
-            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubit)
-            circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
+    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubits=None, ctrl_initialize=None):
+        if helper_qubits and helper_qubits[0]:
+            circ = self.multicontrol(circ, control_qubits, target_qubits[0], helper_qubits[0])
+            circ = circ.compose(unitary.control(1), [helper_qubits[0]] + target_qubits)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ
 
     def mcx(self, circ, control_qubits, target_qubit, helper_qubits=None):
-        if not helper_qubits:
+        if not helper_qubits or not helper_qubits[0]:
             return circ
         # circ.mcx(control_qubits, target_qubit)
         # return circ
@@ -45,7 +45,7 @@ class ItenMC():
         circ = self.shor_halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
         circ = self.shor_halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
         circ = self.shor_halfcontrol(circ, control_qubits[k1:], control_qubits[:k1], helper)
-        # circ = self.shor_halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
+        circ = self.shor_halfcontrol(circ, control_qubits[:k1], control_qubits[k1:] + [helper], target_qubit)
         
         return circ
 
@@ -128,7 +128,6 @@ class ItenMC():
         #Action part
         num_controls = len(control_qubits)
         num_additional = len(additional_qubits)
-        print(num_controls)
         if num_controls > np.ceil((num_additional + num_controls + 1)/2):
             return circ
         if num_controls == 0:
@@ -256,19 +255,19 @@ class HalfItenMC(ItenMC):
     def __init__(self):
         pass
 
-    def control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None):
-        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
-        if helper_qubit:
-            circ = self.shor_halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
+    def control(self, circ, unitary, control_qubits, target_qubits, helper_qubits=None):
+        circ = self.half_control(circ, unitary, control_qubits, target_qubits, helper_qubits)
+        if helper_qubits and helper_qubits[0]:
+            circ = self.shor_halfcontrol(circ, target_qubits, control_qubits, helper_qubits[0])
         return circ
 
-    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubit=None, ctrl_initialize=None):
-        if helper_qubit:
-            circ = self.shor_halfcontrol(circ, target_qubits, control_qubits, helper_qubit)
+    def half_control(self, circ, unitary, control_qubits, target_qubits, helper_qubits=None, ctrl_initialize=None):
+        if helper_qubits and helper_qubits[0]:
+            circ = self.shor_halfcontrol(circ, target_qubits + helper_qubits[1:], control_qubits, helper_qubits[0])
             if ctrl_initialize is None:
-                circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
+                circ = circ.compose(unitary.control(1), [helper_qubits[0]] + target_qubits)
             else:
-                circ = ctrl_initialize.ctrl_initialize(circ, unitary, target_qubits, helper_qubit)
+                circ = ctrl_initialize.ctrl_initialize(circ, unitary, target_qubits, helper_qubits)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ    

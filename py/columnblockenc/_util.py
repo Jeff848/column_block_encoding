@@ -42,8 +42,8 @@ def gen_random_snp_matrix_sparse_range(n, zero_range=None, one_range=None):
     return gen_random_snp_matrix_sparse(n, zero_count, one_count)
 
 def gen_random_snp_matrix_sparse(n, zero_count=0, one_count=0):
-    a = np.zeros((2**n, 2**n))
-    if zero_count + one_count > n:
+    a = np.ones((2**n, 2**n)) * 2
+    if zero_count + one_count > 2**n:
         return a
     snp_values = [0] * zero_count + [1] * one_count + [2] * (2**n - zero_count - one_count)
     for j in range(2**n):
@@ -57,18 +57,18 @@ class QiskitMCWrapper():
         pass
     
     @staticmethod
-    def control(circ, unitary, control_qubits, target_qubits, helper_qubit=None):
-        circ = QiskitMCWrapper.half_control(circ, unitary, control_qubits, target_qubits, helper_qubit)
-        if helper_qubit:
-            circ.mcx(control_qubits, helper_qubit)
+    def control(circ, unitary, control_qubits, target_qubits, helper_qubits=None):
+        circ = QiskitMCWrapper.half_control(circ, unitary, control_qubits, target_qubits, helper_qubits)
+        if helper_qubits and helper_qubits[0]:
+            circ.mcx(control_qubits, helper_qubits[0])
 
         return circ
 
     @staticmethod
-    def half_control(circ, unitary, control_qubits, target_qubits, helper_qubit, ctrl_initialize=None):
-        if helper_qubit:
-            circ.mcx(control_qubits, helper_qubit)
-            circ = circ.compose(unitary.control(1), [helper_qubit] + target_qubits)
+    def half_control(circ, unitary, control_qubits, target_qubits, helper_qubits=None, ctrl_initialize=None):
+        if helper_qubits and helper_qubits[0]:
+            circ.mcx(control_qubits, helper_qubits[0])
+            circ = circ.compose(unitary.control(1), [helper_qubits[0]] + target_qubits)
         else:
             circ = circ.compose(unitary.control(len(control_qubits)), control_qubits + target_qubits)
         return circ
@@ -203,7 +203,6 @@ class SwapPrepWrapper():
         for i in range(logn):
             circ.h(target_qubits[i])
         # circ = circ.compose(unitary.inverse(), target_qubits)
-        print(circ.draw())
         return circ
 
     def get_ancillas(self, sparsity, length, wide_bin_state_prep=False):

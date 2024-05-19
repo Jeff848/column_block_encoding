@@ -1,14 +1,14 @@
 # from .block_enc import create_be_0, create_be_1, create_be_2, create_be_3
-# from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding
-# from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob
+# from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
+# from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
 # from .multi_control import ItenMC, HalfItenMC
 # from .bin_prep import SNPWideBinPrepWrapper
 # from ._angle_tree_util import top_down
 # from ._angle_tree_util import state_decomposition
 # from ._angle_tree_util import Amplitude
 # from ._angle_tree_util import create_angles_tree
-# from ._angle_tree_util import tree_visual_representation\
-# from ._bdd_tree_util import convert_tree_to_bdd
+# from ._angle_tree_util import tree_visual_representation
+# from ._bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
 from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
 from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
 from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
@@ -239,24 +239,36 @@ def test_direct():
     test_general(n, a, circ, alpha)
 
 def test_topdown():
-    n = 4
-    a = gen_random_snp_matrix_prob(n)
+    n = 2
+    a = np.array([
+        [2, 0, 1, 2],
+        [0, 0, 2, 2],
+        [1, 2, 2, 1],
+        [2, 2, 2, 2]
+    ])
+    # a = gen_random_snp_matrix_prob(n)
     print(a)
 
     circ, alpha = topdown_block_encoding(a)
     # print(circ.decompose(reps=2).draw()) 
     test_general(n, a, circ, alpha)
+    # print(circ.draw())
 
 def test_bdd():
-    n = 3
-
-    a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
+    n = 2
+    a = np.array([
+    [2, 0, 1, 2],
+    [0, 0, 2, 2],
+    [1, 2, 2, 1],
+    [2, 2, 2, 2]
+])
+    # a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
     # a = gen_random_snp_matrix_prob(n)
     if np.all(a == 2):
         return
     print(a)
 
-    circ, alpha = bdd_based_block_encoding(a)
+    circ, alpha = bdd_based_block_encoding(a, use_sparse=True)
     # print(circ.decompose(reps=2).draw()) 
     test_general(n, a, circ, alpha)
         
@@ -278,7 +290,20 @@ def test_swap():
 # test_optim()
 # test_simple()
 
+# n=2
+# a = np.array([
+#     [2, 0, 1, 2],
+#     [0, 0, 2, 2],
+#     [1, 2, 2, 1],
+#     [2, 2, 2, 2]
+# ])
+# circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+#         prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True, freq_center=True)
+# # print(circ.draw())
+
+# test_general(n, a, circ, alpha)
 # test_direct()
+# test_topdown()
 # for i in range(10):
 test_bdd()
 # test_swap()
@@ -286,9 +311,10 @@ test_bdd()
 # data = [Amplitude(i, a) for i, a in enumerate([2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 0, 0, 0, 2])]
 # tree = state_decomposition(4, data)
 # bdd = convert_tree_to_bdd(tree)
-# centered_bdd = common_case_centering(bdd)
+# common_case, centered_bdd = common_case_centering(bdd)
 # leaves_bdd, _ = leavesBDD(centered_bdd)
-# angle_tree, _ = create_angles_tree(centered_bdd, end_level=leaves_bdd[0].level, is_ctrl=True, subnorm=1)
+# # print(leaves_bdd[0])
+# angle_tree, _ = create_angles_tree(centered_bdd, end_level=leaves_bdd[0].level, subnorm=1)
 # print(tree_visual_representation(angle_tree))
 # circuit = QuantumCircuit(2)
 # circuit.cry(np.pi, 0, 1)
@@ -314,3 +340,16 @@ test_bdd()
 #     circ2 = ItenMC().parallel_mcxry(circ2, angle, ctrls, [7], [8], helper_qubits=[9])
 #     print(circ2.draw())
 #     test_equiv(circ1, circ2)
+# n = 7
+
+# a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
+# circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+#     prepare=QiskitPrepWrapper, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True, freq_center=True)
+# transpiled = transpile(circ, basis_gates=['u', 'cx'], optimization_level=0)
+# transpiled.save_state()
+# result = simulator.run(transpiled).result()
+# u_be = result.get_unitary(transpiled)
+# print(np.asarray(u_be)[:2**n, :2**n])
+# print(transpiled.depth())
+# print(transpiled.count_ops().get('cx', 0))
+# test_general(n, a, circ, alpha)

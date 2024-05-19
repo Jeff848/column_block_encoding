@@ -17,6 +17,8 @@
 https://arxiv.org/abs/2108.10182
 """
 
+# from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
+from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 import math
 import cmath
 from dataclasses import dataclass
@@ -24,8 +26,6 @@ from typing import NamedTuple
 from graphviz import Digraph
 from enum import Enum
 from typing import List
-# from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
-from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 import numpy as np
 from qiskit import QuantumCircuit
 from bitstring import BitArray
@@ -366,10 +366,11 @@ def top_down(angle_tree, circuit, start_level, rotate_qubit, qubit_order, contro
                     ucry = uniform_rotation(angles_y[order], angles_norm[order], ry=True, use_b=True)
                     circuit.append(ucry, list(control_qubits) + [target_qubit]#)
                         + [rotate_qubit])
-                    
+                    print(ucry.draw())
                 else:
                     ucry = uniform_rotation(angles_y[order], None, ry=True)
                     circuit.append(ucry, list(control_qubits) + [target_qubit])
+                    print(ucry.draw())
                 
 
             control_nodes.append(angle_tree)  # add current node to the controls list
