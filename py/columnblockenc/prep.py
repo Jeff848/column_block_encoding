@@ -1,3 +1,14 @@
+from ._angle_tree_util import Node, NodeAngleTree, NodeType, tree_visual_representation, Amplitude
+from ._bdd_tree_util import convert_tree_to_bdd, leavesBDD
+from .multi_control import HalfItenMC, ItenMC, IntelligentMC
+# from _angle_tree_util import Node, NodeAngleTree, NodeType, tree_visual_representation, Amplitude
+# from _bdd_tree_util import convert_tree_to_bdd, leavesBDD
+# from multi_control import HalfItenMC, ItenMC, IntelligentMC
+import numpy as np
+from bitstring import BitArray
+
+
+
 def state_decomposition(nqubits, data):
     """
     :param nqubits: number of qubits required to generate a
@@ -23,7 +34,7 @@ def state_decomposition(nqubits, data):
         )
 
     # build state tree
-    is_target = True
+    # is_target = True
     while nqubits > 0:
         nodes = new_nodes
         new_nodes = []
@@ -31,16 +42,10 @@ def state_decomposition(nqubits, data):
         k = 0
         n_nodes = len(nodes)
         while k < n_nodes:
-            if is_target:
-                mag = np.sqrt(
-                    nodes[k].mag ** 2 + nodes[k + 1].mag ** 2
-                )
-                ntype = NodeType.TARGET
-            else:
-                mag = max(
-                    nodes[k].mag, nodes[k + 1].mag
-                )
-                ntype = NodeType.CTRL
+            mag = np.sqrt(
+                nodes[k].mag ** 2 + nodes[k + 1].mag ** 2
+            )
+            ntype = NodeType.TARGET
 
             new_nodes.append(
                 Node(nodes[k].index // 2, nqubits, nodes[k], nodes[k + 1], [], [], mag, ntype)
@@ -49,7 +54,7 @@ def state_decomposition(nqubits, data):
             nodes[k+1].parents_right.append(new_nodes[-1])
             k = k + 2
 
-        is_target = not is_target
+        # is_target = not is_target
     tree_root = new_nodes[0]
     return tree_root
 
@@ -122,8 +127,9 @@ def create_angles_tree(state_tree, subnorm=1, end_level=1):
 
     return node, subnorm
 
-def bdd_based_sp(angle_tree, circuit, helper_qubit, path_qubit, sparse_qubit, qubit_order,
-    multi_control=ItenMC(), current_path=[], last_1childs=[], end_level=1, extra_control=None,
+
+def bdd_based_sp(angle_tree, circuit, helper_qubit, path_qubit, qubit_order,
+    multi_control=IntelligentMC(), current_path=[], last_1childs=[], end_level=1, extra_control=None,
 ):
     """pre order traversal"""
     #Get 1 branches taken along the current path
@@ -131,7 +137,6 @@ def bdd_based_sp(angle_tree, circuit, helper_qubit, path_qubit, sparse_qubit, qu
 
     if angle_tree is None: 
         return circuit
-
     
     last_level = None
     if len(current_path) > 0:
@@ -141,10 +146,23 @@ def bdd_based_sp(angle_tree, circuit, helper_qubit, path_qubit, sparse_qubit, qu
     #If there are reduced nodes between last node on current path and current node
     if not last_level is None and angle_tree.level - last_level > 1:
         for level in range(last_level + 1, angle_tree.level): #Not counting last_level
-            if level%2 != 0: #If not ctrl
-                circuit = multi_control.mcry(circuit, np.pi/2, [path_qubit] + list(qubit_order[last_1childs_levels]), 
-                    qubit_order[level], helper_qubits=[helper_qubit])
-                
+            circuit = multi_control.mcry(circuit, np.pi/2, [path_qubit] + list(qubit_order[last_1childs_levels]), 
+                qubit_order[level], helper_qubits=[helper_qubit])
+    
+    left_list = list(last_1childs)
+    right_list = list(last_1childs)
+    #Do nothing if is_ctrl
+    if (angle_tree.left and angle_tree.right):
+        #2-ctrl ry gate
+        circuit = multi_control.mcry(circuit, angle_tree.angle_y, [path_qubit] + list(qubit_order[last_1childs_levels]), 
+            qubit_order[angle_tree.level], helper_qubits=[helper_qubit])
+        left_list = []
+    elif angle_tree.left:
+        #2-ctrl not gate
+        circuit = multi_control.mcx(circuit, [path_qubit] + list(qubit_order[last_1childs_levels]), 
+            qubit_order[angle_tree.level], helper_qubits=[helper_qubit])
+        left_list = []
+
     #If last node in the path
     if angle_tree.level >= end_level:
         #Add any phase--not relevant for real numbers
@@ -154,60 +172,35 @@ def bdd_based_sp(angle_tree, circuit, helper_qubit, path_qubit, sparse_qubit, qu
             control_qubits.append(extra_control)
 
         last_node, is_left = current_path[-1]
-        is_terminal_last_node = False#(last_node.left and last_node.right) and (last_node.left.level == end_level) and (last_node.right.level == end_level)
         for node, is_left in current_path:
-            if (not node.left is None and not node.right is None and not is_terminal_last_node) or node.is_ctrl:
+            if (not node.left is None and not node.right is None):
                 if not is_left:
                     circuit.x(qubit_order[node.level])
                 control_qubits.append(qubit_order[node.level])
-
-        # if is_terminal_last_node:
-        #     if not is_left: #Don't double dip
-        #         return circuit
-        
-        # last_node, _ = current_path[-1]
-        # norm = last_node.angle_norm
-        # for level in range(last_node.level, angle_tree.level): #Counting the current level
-        #     print("Adjusting norm")
-        #     print(level)
-        #     if level % 2 == 0: #If splits a ctrl node
-        #         norm = norm / np.sqrt(2)
-        norm = np.clip(angle_tree.angle_norm, 0, 1) #Should be correctly calculated by angle tree
-        angle = 2 * np.arccos(norm)
-
-        circuit = multi_control.parallel_mcxry(circuit, angle, control_qubits, 
-            path_qubit, rotate_qubit, helper_qubits=[helper_qubit])
+        #If no branches then only one path
+        if len(control_qubits) == 0:
+            circuit.x(path_qubit)
+        else:
+            circuit = multi_control.mcx(circuit, control_qubits, 
+                path_qubit, helper_qubits=[helper_qubit])
         # circuit = multi_control.mcx(circuit, control_qubits, sparse_qubit)
         
         
         for node, is_left in current_path:
-            if (node.left and node.right) or node.is_ctrl:
+            if (node.left and node.right):
                 if not is_left:
                     circuit.x(qubit_order[node.level])
         
         return circuit
-    
-    left_list = list(last_1childs)
-    right_list = list(last_1childs)
-    #Do nothing if is_ctrl
-    if not angle_tree.is_ctrl and (angle_tree.left and angle_tree.right):
-        #2-ctrl ry gate
-        circuit = multi_control.mcry(circuit, angle_tree.angle_y, [path_qubit] + list(qubit_order[last_1childs_levels]), 
-            qubit_order[angle_tree.level], helper_qubits=[helper_qubit])
-        left_list = []
-    elif not angle_tree.is_ctrl and angle_tree.left:
-        #2-ctrl not gate
-        circuit = multi_control.mcx(circuit, [path_qubit] + list(qubit_order[last_1childs_levels]), 
-            qubit_order[angle_tree.level], helper_qubits=[helper_qubit])
-        left_list = []
+
     left_list = left_list + [angle_tree]
 
-    circuit = bdd_based(angle_tree.left, circuit, rotate_qubit, 
-        helper_qubit, path_qubit, sparse_qubit, qubit_order, 
+    circuit = bdd_based_sp(angle_tree.left, circuit, 
+        helper_qubit, path_qubit, qubit_order, 
         multi_control=multi_control, current_path=current_path + [(angle_tree, True)], 
         last_1childs=left_list,end_level=end_level, extra_control=extra_control) #Do highest sv first
-    circuit = bdd_based(angle_tree.right, circuit, rotate_qubit, 
-        helper_qubit, path_qubit, sparse_qubit, qubit_order, 
+    circuit = bdd_based_sp(angle_tree.right, circuit,
+        helper_qubit, path_qubit, qubit_order, 
         multi_control=multi_control, current_path=current_path + [(angle_tree, False)], 
         last_1childs=right_list,end_level=end_level, extra_control=extra_control)
 
@@ -217,14 +210,50 @@ class BDDPrep:
      
     @staticmethod
     def initialize(circ, state, target_qubits):
-        ancillas = QiskitPrepWrapper.get_ancillas(len(state), len(state))
-        prep_circ = QuantumCircuit(len(target_qubits)-ancillas)
-        prep_circ.initialize(state, list(range(len(target_qubits)-ancillas)))
-        prep_circ = prep_circ.decompose(reps=5)
-        prep_circ.data = [ins for ins in prep_circ.data if ins.operation.name != "reset"]
-        circ = circ.compose(prep_circ, target_qubits[ancillas:])
+        logn = len(target_qubits)-2
+        state_ord = state[::-1]
+        
+        state_tree = state_decomposition(logn, [Amplitude(i, a_v) for i, a_v in enumerate(state_ord)])
+        robdd = convert_tree_to_bdd(state_tree)
+        #Track leaf nodes for reference
+        leaves_bdd, leavesToFreq = leavesBDD(robdd)
+
+        #Remove 0 case
+        for leaf in leaves_bdd:
+            if leaf.mag == 0:
+                common_leaf = leaf
+                break
+
+        #Remove most common case from bdd
+        #for other leaves Center around common case
+        for parent_l in common_leaf.parents_left:
+            parent_l.left = None
+        for parent_r in common_leaf.parents_right:
+            parent_r.right = None
+
+        angle_tree, _ = create_angles_tree(robdd,end_level=leaves_bdd[0].level, subnorm=1)
+
+
+        path_qubit = target_qubits[0]
+        helper_qubit = target_qubits[1]
+        qubit_order = np.array(target_qubits[-1:1:-1])
+        circ.x(path_qubit)
+        circ = bdd_based_sp(angle_tree, circ, helper_qubit, path_qubit, qubit_order, end_level=leaves_bdd[0].level)
+        # ancillas = QiskitPrepWrapper.get_ancillas(len(state), len(state))
+        # prep_circ = QuantumCircuit(len(target_qubits)+BDDPrep.get_ancillas())
+        # prep_circ.initialize(state, list(range(len(target_qubits)-ancillas)))
+        # prep_circ = prep_circ.decompose(reps=5)
+        # prep_circ.data = [ins for ins in prep_circ.data if ins.operation.name != "reset"]
+        # circ = circ.compose(prep_circ, target_qubits[ancillas:])
+        return circ
+
+    def ctrl_initialize(self, circ, states, target_qubits, ctrl_qubits):
+        init_circ = QuantumCircuit(len(target_qubits))
+        self.initialize(init_circ, states, target_qubits)
+
+        circ = circ.compose(init_circ.control(len(ctrl_qubits)), ctrl_qubits + target_qubits)
         return circ
 
     @staticmethod
     def get_ancillas(sparsity, length, wide_bin_state_prep=False): #Number of ancillas should be a function of the length/sparsity of state
-        return 1
+        return 2

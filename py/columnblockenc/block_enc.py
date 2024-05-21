@@ -1,15 +1,15 @@
 from qiskit import QuantumCircuit
 import numpy as np
-# from ._util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
-# from .multi_control import HalfItenMC, ItenMC, IntelligentMC
-# from ._angle_tree_util import top_down, state_decomposition, create_angles_tree
-# from ._angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
-# from ._bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
-from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
-from multi_control import HalfItenMC, ItenMC, IntelligentMC
-from _angle_tree_util import top_down, state_decomposition, create_angles_tree
-from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
-from _bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
+from ._util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
+from .multi_control import HalfItenMC, ItenMC, IntelligentMC
+from ._angle_tree_util import top_down, state_decomposition, create_angles_tree
+from ._angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
+from ._bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
+# from _util import get_padded_matrix, QiskitPrepWrapper, QiskitMCWrapper
+# from multi_control import HalfItenMC, ItenMC, IntelligentMC
+# from _angle_tree_util import top_down, state_decomposition, create_angles_tree
+# from _angle_tree_util import tree_visual_representation, Amplitude, generate_matrix_order
+# from _bdd_tree_util import leavesBDD, convert_tree_to_bdd, common_case_centering, bdd_based
 import os,sys
 
 #Assuming SNP block matrix
@@ -225,10 +225,10 @@ def topdown_block_encoding(a, multi_control=None):
     #Construct angle tree of matrix
     angle_tree, subnorm = create_angles_tree(binary_tree, subnorm=1, end_level=leaves_bdd[0].level-1)
     
-    with open('/Users/jm/Documents/QResearch/columnblockenc/bin_tree_digraph.dot', 'w') as f:
-        f.write(str(tree_visual_representation(binary_tree)))  
-    with open('/Users/jm/Documents/QResearch/columnblockenc/angle_digraph.dot', 'w') as f:
-        f.write(str(tree_visual_representation(angle_tree)))
+    # with open('/Users/jm/Documents/QResearch/columnblockenc/bin_tree_digraph.dot', 'w') as f:
+    #     f.write(str(tree_visual_representation(binary_tree)))  
+    # with open('/Users/jm/Documents/QResearch/columnblockenc/angle_digraph.dot', 'w') as f:
+    #     f.write(str(tree_visual_representation(angle_tree)))
     u_circ = QuantumCircuit(2*logn + 1)
     rotate_qubit = 2*logn
 
@@ -295,10 +295,10 @@ def bdd_based_block_encoding(a, multi_control=None, use_sparse=True):
 
         #Construct angle tree of paths
         angle_tree, subnorm = create_angles_tree(sparse_robdd, end_level=leaves_bdd[0].level, subnorm=1)
-        with open('/Users/jm/Documents/QResearch/columnblockenc/sparse_bin_tree_digraph.dot', 'w') as f:
-            f.write(str(tree_visual_representation(sparse_robdd)))  
-        with open('/Users/jm/Documents/QResearch/columnblockenc/angle_digraph.dot', 'w') as f:
-            f.write(str(tree_visual_representation(angle_tree)))
+        # with open('/Users/jm/Documents/QResearch/columnblockenc/sparse_bin_tree_digraph.dot', 'w') as f:
+        #     f.write(str(tree_visual_representation(sparse_robdd)))  
+        # with open('/Users/jm/Documents/QResearch/columnblockenc/angle_digraph.dot', 'w') as f:
+        #     f.write(str(tree_visual_representation(angle_tree)))
 
     else:
         #Track leaf nodes for reference

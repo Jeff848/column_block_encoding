@@ -1,25 +1,29 @@
-# from .block_enc import create_be_0, create_be_1, create_be_2, create_be_3
-# from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
-# from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
-# from .multi_control import ItenMC, HalfItenMC
-# from .bin_prep import SNPWideBinPrepWrapper
-# from ._angle_tree_util import top_down
-# from ._angle_tree_util import state_decomposition
-# from ._angle_tree_util import Amplitude
-# from ._angle_tree_util import create_angles_tree
-# from ._angle_tree_util import tree_visual_representation
-# from ._bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
-from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
-from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
-from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
-from multi_control import ItenMC, HalfItenMC
-from bin_prep import SNPWideBinPrepWrapper
-from _angle_tree_util import top_down
-from _angle_tree_util import state_decomposition
-from _angle_tree_util import Amplitude
-from _angle_tree_util import create_angles_tree
-from _angle_tree_util import tree_visual_representation
-from _bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
+from .block_enc import create_be_0, create_be_1, create_be_2, create_be_3
+from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
+from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
+from .multi_control import ItenMC, HalfItenMC
+from .bin_prep import SNPWideBinPrepWrapper
+from .prep import BDDPrep
+from ._angle_tree_util import top_down
+from ._angle_tree_util import state_decomposition
+from ._angle_tree_util import Amplitude
+from ._angle_tree_util import create_angles_tree
+from ._angle_tree_util import tree_visual_representation
+from ._bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
+from .prep import BDDPrep
+# from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
+# from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
+# from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
+# from multi_control import ItenMC, HalfItenMC
+# from bin_prep import SNPWideBinPrepWrapper
+# from prep import BDDPrep
+# from _angle_tree_util import top_down
+# from _angle_tree_util import state_decomposition
+# from _angle_tree_util import Amplitude
+# from _angle_tree_util import create_angles_tree
+# from _angle_tree_util import tree_visual_representation
+# from _bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
+# from prep import BDDPrep
 from fable import fable
 from qiskit_aer import AerSimulator
 from qiskit import transpile
@@ -282,7 +286,18 @@ def test_swap():
     # print(circ.draw())
     test_general(n, a, circ, alpha)
 
+def test_bdd_sp():
+    n = 3
+    a = gen_random_snp_matrix_prob(n)
+    print(a)
+    circ, alpha = column_block_encoding(a, multi_control=HalfItenMC(), mc_helper_qubit=True, 
+        prepare=BDDPrep, bin_state_prep=SNPWideBinPrepWrapper(QiskitPrepWrapper, return_circuit=True), wide_bin_state_prep=True, optimal_control=True, freq_center=True)
+    # print(circ.draw())
+    test_general(n, a, circ, alpha)
 
+
+
+test_bdd_sp()
 
 
 # run_all()
@@ -305,8 +320,21 @@ def test_swap():
 # test_direct()
 # test_topdown()
 # for i in range(10):
-test_bdd()
+# test_bdd()
 # test_swap()
+
+#
+
+# data = [Amplitude(i, a) for i, a in enumerate([2, 0, 1, 2])]
+# circ = QuantumCircuit(2 + 2)
+# BDDPrep.initialize(circ, data, list(range(4)))
+# print(circ.draw())
+# transpiled = transpile(circ, basis_gates=['u', 'cx'], optimization_level=0)
+# transpiled.save_state()
+# simulator = AerSimulator(method="unitary")
+# result = simulator.run(transpiled).result()
+# u_be = result.get_unitary(transpiled)
+# print(np.asarray(u_be[:4, :4]))
 
 # data = [Amplitude(i, a) for i, a in enumerate([2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 0, 0, 0, 2])]
 # tree = state_decomposition(4, data)

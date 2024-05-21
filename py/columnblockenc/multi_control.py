@@ -281,6 +281,7 @@ class HalfItenMC(ItenMC):
 
     def mcry(self, circ, rotate_angle, control_qubits, target_qubit, helper_qubits=None):
         if not helper_qubits:
+            print("helper_qubits")
             return circ
         return self.mcry_halfcontrol(rotate_angle, circ, helper_qubits, control_qubits, target_qubit)
 
@@ -318,10 +319,10 @@ class IntelligentMC():
         if not helper_qubits:
             return circ
 
-        if self.se_half(len(control_qubits), len(helper_qubits)):
-            circ = self.halfiten.mcry(circ, control_qubits, target_qubit, helper_qubits)
+        if self.use_half(len(control_qubits), len(helper_qubits)):
+            circ = self.halfiten.mcry(circ, rotate_angle, control_qubits, target_qubit, helper_qubits=helper_qubits)
         else:
-            circ = self.itenmc.mcry(circ, control_qubits, target_qubit, helper_qubits)
+            circ = self.itenmc.mcry(circ, rotate_angle, control_qubits, target_qubit, helper_qubits=helper_qubits)
 
         return circ
 

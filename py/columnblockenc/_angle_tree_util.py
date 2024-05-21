@@ -17,8 +17,8 @@
 https://arxiv.org/abs/2108.10182
 """
 
-# from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
-from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
+from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
+# from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 import math
 import cmath
 from dataclasses import dataclass
