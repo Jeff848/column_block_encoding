@@ -1,29 +1,29 @@
-from .block_enc import create_be_0, create_be_1, create_be_2, create_be_3
-from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
-from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
-from .multi_control import ItenMC, HalfItenMC
-from .bin_prep import SNPWideBinPrepWrapper
-from .prep import BDDPrep
-from ._angle_tree_util import top_down
-from ._angle_tree_util import state_decomposition
-from ._angle_tree_util import Amplitude
-from ._angle_tree_util import create_angles_tree
-from ._angle_tree_util import tree_visual_representation
-from ._bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
-from .prep import BDDPrep
-# from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
-# from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
-# from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
-# from multi_control import ItenMC, HalfItenMC
-# from bin_prep import SNPWideBinPrepWrapper
-# from prep import BDDPrep
-# from _angle_tree_util import top_down
-# from _angle_tree_util import state_decomposition
-# from _angle_tree_util import Amplitude
-# from _angle_tree_util import create_angles_tree
-# from _angle_tree_util import tree_visual_representation
-# from _bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
-# from prep import BDDPrep
+# from .block_enc import create_be_0, create_be_1, create_be_2, create_be_3
+# from .block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
+# from ._util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
+# from .multi_control import ItenMC, HalfItenMC
+# from .bin_prep import SNPWideBinPrepWrapper
+# from .prep import BDDPrep
+# from ._angle_tree_util import top_down
+# from ._angle_tree_util import state_decomposition
+# from ._angle_tree_util import Amplitude
+# from ._angle_tree_util import create_angles_tree
+# from ._angle_tree_util import tree_visual_representation
+# from ._bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
+# from .prep import BDDPrep
+from block_enc import create_be_0, create_be_1, create_be_2, create_be_3
+from block_enc import column_block_encoding, simple_block_encoding, direct_block_encoding, topdown_block_encoding, bdd_based_block_encoding
+from _util import QiskitPrepWrapper, QiskitMCWrapper, gen_random_snp_matrix_prob, SwapPrepWrapper, gen_random_snp_matrix_sparse
+from multi_control import ItenMC, HalfItenMC
+from bin_prep import SNPWideBinPrepWrapper
+from prep import BDDPrep
+from _angle_tree_util import top_down
+from _angle_tree_util import state_decomposition
+from _angle_tree_util import Amplitude
+from _angle_tree_util import create_angles_tree
+from _angle_tree_util import tree_visual_representation
+from _bdd_tree_util import convert_tree_to_bdd, common_case_centering, leavesBDD
+from prep import BDDPrep
 from fable import fable
 from qiskit_aer import AerSimulator
 from qiskit import transpile
@@ -268,8 +268,8 @@ def test_bdd():
 ])
     # a = gen_random_snp_matrix_sparse(n, zero_count=1, one_count=1)
     # a = gen_random_snp_matrix_prob(n)
-    if np.all(a == 2):
-        return
+    # if np.all(a == 2):
+    #     return
     print(a)
 
     circ, alpha = bdd_based_block_encoding(a, use_sparse=True)
@@ -297,7 +297,7 @@ def test_bdd_sp():
 
 
 
-test_bdd_sp()
+# test_bdd_sp()
 
 
 # run_all()
@@ -320,7 +320,7 @@ test_bdd_sp()
 # test_direct()
 # test_topdown()
 # for i in range(10):
-# test_bdd()
+test_bdd()
 # test_swap()
 
 #

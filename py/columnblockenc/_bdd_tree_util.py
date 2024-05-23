@@ -1,7 +1,7 @@
-from ._angle_tree_util import NodeType
-from .multi_control import ItenMC
-# from _angle_tree_util import NodeType
-# from multi_control import ItenMC
+# from ._angle_tree_util import NodeType
+# from .multi_control import ItenMC
+from _angle_tree_util import NodeType
+from multi_control import ItenMC
 import numpy as np
 from qiskit.circuit.library.standard_gates import RYGate
 

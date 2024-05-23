@@ -17,8 +17,8 @@
 https://arxiv.org/abs/2108.10182
 """
 
-from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
-# from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
+# from ._fable_util import compressed_uniform_rotation, sfwht, gray_permutation
+from _fable_util import compressed_uniform_rotation, sfwht, gray_permutation
 import math
 import cmath
 from dataclasses import dataclass
@@ -69,10 +69,16 @@ class Node:
 
     def __str__(self):
         return (
+            
+            f"{self.mag:.2f}"
+            
+            # f"{self.ntype}"
+        )
+
+    def id(self):
+        return (
             f"{self.level}_"
-            f"{self.index}\n"
-            f"{self.mag:.2f}_"
-            f"{self.ntype}"
+            f"{self.index}"
         )
 
 def state_decomposition(nqubits, data):
@@ -166,15 +172,21 @@ class NodeAngleTree:
 
     def __str__(self):
         return (
-            f"{self.level}_"
-            f"{self.index}\n"
-            f"{self.angle_y:.2f}_"
+            
+            f"{self.angle_y:.2f}\n"
             f"{self.angle_norm:.2f}"
-            f"{self.is_ctrl}"
+            # f"{self.level}_"
+            # f"{self.index}\n"
+            # f"{self.is_ctrl}"
         )
         return txt
 
-
+    def id(self):
+        return (
+            f"{self.level}_"
+            f"{self.index}_"
+            f"{self.angle_norm:.2f}"
+        )
 #Last level contains subnorm of path
 def create_angles_tree(state_tree, subnorm=1, end_level=1):
     """
@@ -251,16 +263,16 @@ def tree_visual_representation(tree, dot=None):
 
     if dot is None:
         dot = Digraph()
-        dot.node(str(tree))
+        dot.node(str(tree.id()), label=str(tree))
 
     if tree.left:
-        dot.node(str(tree.left))
-        dot.edge(str(tree), str(tree.left))
+        dot.node(str(tree.left.id()), label=str(tree.left))
+        dot.edge(str(tree.id()), str(tree.left.id()))
         dot = tree_visual_representation(tree.left, dot=dot)
 
     if tree.right:
-        dot.node(str(tree.right))
-        dot.edge(str(tree), str(tree.right), style='dotted')
+        dot.node(str(tree.right.id()), label=str(tree.right))
+        dot.edge(str(tree.id()), str(tree.right.id()), style='dotted')
         dot = tree_visual_representation(tree.right, dot=dot)
 
     # for node in tree.parents_left:
@@ -366,11 +378,11 @@ def top_down(angle_tree, circuit, start_level, rotate_qubit, qubit_order, contro
                     ucry = uniform_rotation(angles_y[order], angles_norm[order], ry=True, use_b=True)
                     circuit.append(ucry, list(control_qubits) + [target_qubit]#)
                         + [rotate_qubit])
-                    print(ucry.draw())
+                    # print(ucry.draw())
                 else:
                     ucry = uniform_rotation(angles_y[order], None, ry=True)
                     circuit.append(ucry, list(control_qubits) + [target_qubit])
-                    print(ucry.draw())
+                    # print(ucry.draw())
                 
 
             control_nodes.append(angle_tree)  # add current node to the controls list
